@@ -1,4 +1,3 @@
-// src/hooks/useGetGroups.js
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { getRandomEmoji } from "../utils/emojis";
@@ -11,12 +10,11 @@ const useGetGroups = () => {
         const getGroups = async () => {
             setLoading(true);
             try {
-                const res = await fetch("/api/groups");
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/groups`);
                 const data = await res.json();
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                // Assign a static emoji to each group
                 const groupsWithEmoji = data.map(group => {
 					return {
 						...group,

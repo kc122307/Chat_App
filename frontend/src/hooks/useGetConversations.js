@@ -1,4 +1,3 @@
-// src/hooks/useGetConversations.js
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -10,8 +9,7 @@ const useGetConversations = () => {
         const getConversations = async () => {
             setLoading(true);
             try {
-                // Change the API endpoint to fetch all users
-                const res = await fetch("/api/users");
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users`);
                 const data = await res.json();
                 if (data.error) {
                     throw new Error(data.error);

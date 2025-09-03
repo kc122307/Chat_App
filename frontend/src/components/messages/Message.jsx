@@ -1,5 +1,3 @@
-// src/components/messages/Message.jsx
-
 import { useAuthContext } from "../../context/AuthContext";
 import { extractTime } from "../../utils/extractTime";
 import useConversation from "../../zustand/useConversation";
@@ -15,9 +13,8 @@ const Message = ({ message }) => {
 
 	const shakeClass = message.shouldShake ? "shake" : "";
 
-	// Define the base URL for your backend. This should be a URL like http://localhost:5000
-	// If you are using a hosted backend, use its URL.
-	const BACKEND_URL = "http://localhost:5000";
+	// Get the backend URL from environment variables
+	const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 	return (
 		<div className={`chat ${chatClassName}`}>

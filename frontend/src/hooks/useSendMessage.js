@@ -1,5 +1,3 @@
-// src/hooks/useSendMessage.js
-
 import { useState } from "react";
 import useConversation from "../zustand/useConversation";
 import toast from "react-hot-toast";
@@ -11,9 +9,9 @@ const useSendMessage = () => {
 	const sendMessage = async (data) => {
 		setLoading(true);
 		try {
-			const res = await fetch(`/api/messages/send/${selectedConversation._id}`, {
+			const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/messages/send/${selectedConversation._id}`, {
 				method: "POST",
-				body: data, // `data` can be either FormData or JSON
+				body: data, 
 			});
 			const resData = await res.json();
 			if (resData.error) throw new Error(resData.error);

@@ -9,7 +9,7 @@ const useGetMyProfile = () => {
         const getProfile = async () => {
             setLoading(true);
             try {
-                const res = await fetch("/api/users/me");
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/me`);
                 const data = await res.json();
                 if (data.error) {
                     throw new Error(data.error);

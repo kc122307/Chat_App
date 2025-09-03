@@ -1,4 +1,3 @@
-// src/hooks/useCreateGroup.js
 import { useState } from "react";
 import toast from "react-hot-toast";
 import useConversation from "../zustand/useConversation";
@@ -10,7 +9,7 @@ const useCreateGroup = () => {
     const createGroup = async (name, members) => {
         setLoading(true);
         try {
-            const res = await fetch("/api/groups/create", {
+            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/groups/create`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -22,7 +21,6 @@ const useCreateGroup = () => {
                 throw new Error(data.error);
             }
             toast.success("Group created successfully!");
-            // Automatically select the new group
             setSelectedConversation(data);
             setMessages([]);
         } catch (error) {
