@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 5000;
 
 // Update the CORS middleware to allow requests from the frontend domain
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: 'https://chat-app-nu-peach.vercel.app',
     credentials: true
 }));
 

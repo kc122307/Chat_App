@@ -9,7 +9,7 @@ const server = http.createServer(app);
 // Update Socket.io CORS origin to allow the frontend domain
 const io = new Server(server, {
 	cors: {
-		origin: "http://localhost:3000",
+		origin: "https://chat-app-nu-peach.vercel.app/",
 		methods: ["GET", "POST"],
         credentials: true
 	},
