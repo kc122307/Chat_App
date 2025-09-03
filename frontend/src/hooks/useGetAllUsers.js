@@ -1,8 +1,5 @@
-// src/hooks/useGetAllUsers.js
-
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import api from '../services/api.service.js';
 
 const useGetAllUsers = () => {
     const [loading, setLoading] = useState(false);
@@ -12,8 +9,13 @@ const useGetAllUsers = () => {
         const fetchAllUsers = async () => {
             setLoading(true);
             try {
-                const response = await api.get("/users/for-sidebar"); // Use your backend's endpoint
-                setUsers(response.data.data);
+                // Corrected to use fetch with the environment variable
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users`);
+                const data = await res.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                setUsers(data);
             } catch (error) {
                 toast.error(error.message);
             } finally {
