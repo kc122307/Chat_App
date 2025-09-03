@@ -10,7 +10,7 @@ const useGetAllUsers = () => {
             setLoading(true);
             try {
                 // Corrected to use fetch with the environment variable
-                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users`);
+                const res = await fetch(`https://chat-app-b6dd.onrender.com/api/users`);
                 const data = await res.json();
                 if (data.error) {
                     throw new Error(data.error);
