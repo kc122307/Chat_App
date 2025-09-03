@@ -6,10 +6,11 @@ import express from "express";
 const app = express();
 const server = http.createServer(app);
 
-// Update Socket.io CORS origin to allow the frontend domain
+const frontendUrl = process.env.CORS_ORIGIN;
+
 const io = new Server(server, {
 	cors: {
-		origin: "https://chat-app-nu-peach.vercel.app/",
+		origin: frontendUrl,
 		methods: ["GET", "POST"],
         credentials: true
 	},
