@@ -6,6 +6,7 @@ import express from "express";
 const app = express();
 const server = http.createServer(app);
 
+// Use the environment variable for the CORS origin
 const frontendUrl = process.env.CORS_ORIGIN;
 
 const io = new Server(server, {
