@@ -9,27 +9,13 @@ const useGetMyProfile = () => {
         const getProfile = async () => {
             setLoading(true);
             try {
-                // Step 1: Get the user data from localStorage and check if it exists
-                const storedUserData = localStorage.getItem("chat-user");
-                if (!storedUserData) {
-                    throw new Error("User not authenticated. No token found.");
-                }
-
-                // Step 2: Parse the data and get the token
-                const { token } = JSON.parse(storedUserData);
-                if (!token) {
-                    throw new Error("Authentication token is missing.");
-                }
-
-                // Step 3: Make the fetch request with the authorization header
+                // Remove localStorage and Authorization header logic
                 const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/me`, {
-                    headers: {
-                        "Authorization": `Bearer ${token}` // This is the key part to add
-                    }
+                    credentials: 'include', // Tell the browser to send cookies
                 });
 
                 if (res.status === 401) {
-                    throw new Error("Authentication failed. Token is invalid or expired.");
+                    throw new Error("Authentication failed. No token found.");
                 }
 
                 const data = await res.json();
@@ -37,12 +23,10 @@ const useGetMyProfile = () => {
                     throw new Error(data.error);
                 }
                 setProfile(data);
-
             } catch (error) {
                 toast.error(error.message);
                 if (error.message.includes("token")) {
                     localStorage.removeItem("chat-user");
-                    // Optionally redirect to login page
                 }
             } finally {
                 setLoading(false);
