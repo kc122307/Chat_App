@@ -9,14 +9,9 @@ const useGetConversations = () => {
         const getConversations = async () => {
             setLoading(true);
             try {
-                // Get the token from localStorage
-                const storedUserData = localStorage.getItem("chat-user");
-                const { token } = JSON.parse(storedUserData);
-                
+                // Remove localStorage and Authorization header logic
                 const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users`, {
-                    headers: {
-                        "Authorization": `Bearer ${token}` // Add the token here
-                    }
+                    credentials: 'include', // Tell the browser to send cookies
                 });
                 const data = await res.json();
                 if (data.error) {
