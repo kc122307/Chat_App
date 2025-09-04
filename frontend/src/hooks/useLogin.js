@@ -15,17 +15,14 @@ const useLogin = () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),
+                credentials: 'include', // <--- ADD THIS LINE
             });
 
             const data = await res.json();
             if (data.error) {
                 throw new Error(data.error);
             }
-
-            // Remove this line to stop using localStorage for auth
-            // localStorage.setItem("chat-user", JSON.stringify(data)); 
             
-            // This line can stay to update UI state, but it no longer relies on localStorage
             setAuthUser(data);
         } catch (error) {
             toast.error(error.message);
