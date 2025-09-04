@@ -9,9 +9,9 @@ const useGetAllUsers = () => {
         const fetchAllUsers = async () => {
             setLoading(true);
             try {
-                // Remove localStorage and Authorization header logic
-                const res = await fetch(`https://chat-app-b6dd.onrender.com/api/users`, {
-                    credentials: 'include', // Tell the browser to send cookies
+                // Use the environment variable for the backend URL
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users`, {
+                    credentials: 'include',
                 });
 
                 if (res.status === 401) {
@@ -25,9 +25,7 @@ const useGetAllUsers = () => {
                 setUsers(data);
             } catch (error) {
                 toast.error(error.message);
-                if (error.message.includes("token")) {
-                    localStorage.removeItem("chat-user");
-                }
+                
             } finally {
                 setLoading(false);
             }
