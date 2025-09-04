@@ -10,31 +10,25 @@ const useGetGroups = () => {
         const getGroups = async () => {
             setLoading(true);
             try {
-                // Get the user data and token from localStorage
-                const storedUserData = localStorage.getItem("chat-user");
-                if (!storedUserData) {
-                    throw new Error("User not authenticated. No token found.");
-                }
-                const { token } = JSON.parse(storedUserData);
-                if (!token) {
-                    throw new Error("Authentication token is missing.");
-                }
-                
+                // Remove localStorage and Authorization header logic
                 const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/groups`, {
-                    headers: {
-                        "Authorization": `Bearer ${token}` // ADD THIS LINE
-                    }
+                    credentials: 'include', // Tell the browser to send cookies
                 });
+
+                if (res.status === 401) {
+                    throw new Error("Authentication failed. No token found.");
+                }
+
                 const data = await res.json();
                 if (data.error) {
                     throw new Error(data.error);
                 }
                 const groupsWithEmoji = data.map(group => {
-					return {
-						...group,
-						emoji: getRandomEmoji()
-					};
-				});
+                    return {
+                        ...group,
+                        emoji: getRandomEmoji()
+                    };
+                });
                 setGroups(groupsWithEmoji);
             } catch (error) {
                 toast.error(error.message);
