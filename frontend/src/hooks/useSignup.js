@@ -16,15 +16,13 @@ const useSignup = () => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ fullName, username, password, confirmPassword, gender }),
+                credentials: 'include', // <--- ADD THIS LINE
             });
 
             const data = await res.json();
             if (data.error) {
                 throw new Error(data.error);
             }
-            
-            // Remove this line
-            // localStorage.setItem("chat-user", JSON.stringify(data));
             
             setAuthUser(data);
         } catch (error) {
