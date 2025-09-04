@@ -6,29 +6,29 @@ import useConversation from "../zustand/useConversation";
 const SocketContext = createContext();
 
 export const useSocketContext = () => {
-	return useContext(SocketContext);
+    return useContext(SocketContext);
 };
 
 export const SocketContextProvider = ({ children }) => {
-	const [socket, setSocket] = useState(null);
-	const [onlineUsers, setOnlineUsers] = useState([]);
-	const { authUser } = useAuthContext();
+    const [socket, setSocket] = useState(null);
+    const [onlineUsers, setOnlineUsers] = useState([]);
+    const { authUser } = useAuthContext();
     const { setIncomingCall } = useConversation();
 
-	useEffect(() => {
-		if (authUser) {
-			const backendUrl = import.meta.env.VITE_BACKEND_URL;
-			const socket = io(backendUrl, {
-				query: {
-					userId: authUser._id,
-				},
-			});
+    useEffect(() => {
+        if (authUser) {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL;
+            const socket = io(backendUrl, {
+                query: {
+                    userId: authUser._id,
+                },
+            });
 
-			setSocket(socket);
+            setSocket(socket);
 
-			socket.on("getOnlineUsers", (users) => {
-				setOnlineUsers(users);
-			});
+            socket.on("getOnlineUsers", (users) => {
+                setOnlineUsers(users);
+            });
 
             // Listen for incoming calls
             socket.on('call-received', ({ from, signal }) => {
@@ -40,14 +40,14 @@ export const SocketContextProvider = ({ children }) => {
                 setIncomingCall(null);
             });
 
-			return () => socket.close();
-		} else {
-			if (socket) {
-				socket.close();
-				setSocket(null);
-			}
-		}
-	}, [authUser, setIncomingCall]);
+            return () => socket.close();
+        } else {
+            if (socket) {
+                socket.close();
+                setSocket(null);
+            }
+        }
+    }, [authUser]); // Removed setIncomingCall from the dependency array
 
-	return <SocketContext.Provider value={{ socket, onlineUsers }}>{children}</SocketContext.Provider>;
+    return <SocketContext.Provider value={{ socket, onlineUsers }}>{children}</SocketContext.Provider>;
 };
