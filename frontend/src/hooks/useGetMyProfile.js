@@ -9,26 +9,25 @@ const useGetMyProfile = () => {
         const getProfile = async () => {
             setLoading(true);
             try {
-                // Get the user data from localStorage and check if it exists
+                // Step 1: Get the user data from localStorage and check if it exists
                 const storedUserData = localStorage.getItem("chat-user");
                 if (!storedUserData) {
                     throw new Error("User not authenticated. No token found.");
                 }
 
-                // Parse the data and get the token
+                // Step 2: Parse the data and get the token
                 const { token } = JSON.parse(storedUserData);
                 if (!token) {
                     throw new Error("Authentication token is missing.");
                 }
 
-                // Make the fetch request with the authorization header
+                // Step 3: Make the fetch request with the authorization header
                 const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users/me`, {
                     headers: {
-                        "Authorization": `Bearer ${token}` // This is the key part
+                        "Authorization": `Bearer ${token}` // This is the key part to add
                     }
                 });
 
-                // Check for unauthorized status before parsing the response
                 if (res.status === 401) {
                     throw new Error("Authentication failed. Token is invalid or expired.");
                 }
@@ -41,10 +40,9 @@ const useGetMyProfile = () => {
 
             } catch (error) {
                 toast.error(error.message);
-                // Optionally, log out the user if the token is invalid
                 if (error.message.includes("token")) {
                     localStorage.removeItem("chat-user");
-                    // Redirect to login page
+                    // Optionally redirect to login page
                 }
             } finally {
                 setLoading(false);

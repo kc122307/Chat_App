@@ -10,7 +10,21 @@ const useGetMessages = () => {
 		const getMessages = async () => {
 			setLoading(true);
 			try {
-				const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/messages/${selectedConversation._id}`);
+                // Get the user data and token from localStorage
+                const storedUserData = localStorage.getItem("chat-user");
+                if (!storedUserData) {
+                    throw new Error("User not authenticated. No token found.");
+                }
+                const { token } = JSON.parse(storedUserData);
+                if (!token) {
+                    throw new Error("Authentication token is missing.");
+                }
+
+				const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/messages/${selectedConversation._id}`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}` // ADD THIS LINE
+                    }
+                });
 				const data = await res.json();
 				if (data.error) throw new Error(data.error);
 				setMessages(data);

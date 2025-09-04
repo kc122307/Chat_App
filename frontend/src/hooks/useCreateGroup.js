@@ -9,10 +9,21 @@ const useCreateGroup = () => {
     const createGroup = async (name, members) => {
         setLoading(true);
         try {
+            // Get the user data and token from localStorage
+            const storedUserData = localStorage.getItem("chat-user");
+            if (!storedUserData) {
+                throw new Error("User not authenticated. No token found.");
+            }
+            const { token } = JSON.parse(storedUserData);
+            if (!token) {
+                throw new Error("Authentication token is missing.");
+            }
+
             const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/groups/create`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}` // ADD THIS LINE
                 },
                 body: JSON.stringify({ name, members }),
             });
