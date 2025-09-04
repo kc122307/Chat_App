@@ -1,38 +1,60 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 
-const useGetConversations = () => {
+const useGetAllUsers = () => {
     const [loading, setLoading] = useState(false);
-    const [conversations, setConversations] = useState([]);
+    const [users, setUsers] = useState([]);
 
     useEffect(() => {
-        const getConversations = async () => {
+        const fetchAllUsers = async () => {
             setLoading(true);
             try {
-                // Get the token from localStorage
+                // Get the user data from localStorage and handle if it doesn't exist
                 const storedUserData = localStorage.getItem("chat-user");
+                if (!storedUserData) {
+                    throw new Error("User not authenticated. No token found.");
+                }
+
+                // Parse the data and get the token
                 const { token } = JSON.parse(storedUserData);
-                
-                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users`, {
+                if (!token) {
+                    throw new Error("Authentication token is missing.");
+                }
+
+                // Make the fetch request with the authorization header
+                const res = await fetch(`https://chat-app-b6dd.onrender.com/api/users`, {
                     headers: {
-                        "Authorization": `Bearer ${token}` // Add the token here
+                        "Authorization": `Bearer ${token}` // This is still the correct way to add the token
                     }
                 });
+
+                // Check for unauthorized status before parsing the response
+                if (res.status === 401) {
+                    throw new Error("Authentication failed. Token is invalid or expired.");
+                }
+
                 const data = await res.json();
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                setConversations(data);
+                setUsers(data);
+
             } catch (error) {
                 toast.error(error.message);
+                // Optionally, log out the user if the token is invalid
+                if (error.message.includes("token")) {
+                    localStorage.removeItem("chat-user");
+                    // Redirect to login page
+                }
             } finally {
                 setLoading(false);
             }
         };
 
-        getConversations();
+        fetchAllUsers();
     }, []);
 
-    return { loading, conversations };
+    return { loading, users };
 };
-export default useGetConversations;
+
+export default useGetAllUsers;
