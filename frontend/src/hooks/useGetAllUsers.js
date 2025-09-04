@@ -1,21 +1,28 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-const useGetAllUsers = () => {
+const useGetConversations = () => {
     const [loading, setLoading] = useState(false);
-    const [users, setUsers] = useState([]);
+    const [conversations, setConversations] = useState([]);
 
     useEffect(() => {
-        const fetchAllUsers = async () => {
+        const getConversations = async () => {
             setLoading(true);
             try {
-                // Corrected to use fetch with the environment variable
-                const res = await fetch(`https://chat-app-b6dd.onrender.com/api/users`);
+                // Get the token from localStorage
+                const storedUserData = localStorage.getItem("chat-user");
+                const { token } = JSON.parse(storedUserData);
+                
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/users`, {
+                    headers: {
+                        "Authorization": `Bearer ${token}` // Add the token here
+                    }
+                });
                 const data = await res.json();
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                setUsers(data);
+                setConversations(data);
             } catch (error) {
                 toast.error(error.message);
             } finally {
@@ -23,10 +30,9 @@ const useGetAllUsers = () => {
             }
         };
 
-        fetchAllUsers();
+        getConversations();
     }, []);
 
-    return { loading, users };
+    return { loading, conversations };
 };
-
-export default useGetAllUsers;
+export default useGetConversations;
