@@ -101,28 +101,32 @@ const useCall = () => {
     }, [socket, endCall, setIncomingCall]);
 
     const startCall = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            setLocalStream(stream);
-            
-            const peer = new Peer({ initiator: true, trickle: false, stream });
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setLocalStream(stream);
 
-            peer.on('signal', (signal) => {
+        const peer = new Peer({ initiator: true, trickle: false, stream });
+
+        peer.on('signal', (signal) => {
+            if (socket) { // <--- ADD THIS CHECK
                 socket.emit('call-user', { userToCall: selectedConversation._id, signal });
-            });
+            } else {
+                toast.error("Socket not connected. Please try again.");
+            }
+        });
 
-            peer.on('stream', (stream) => {
-                setRemoteStreams({ [selectedConversation._id]: stream });
-            });
-            
-            peersRef.current[selectedConversation._id] = peer;
-            navigate('/call');
+        peer.on('stream', (stream) => {
+            setRemoteStreams({ [selectedConversation._id]: stream });
+        });
 
-        } catch (err) {
-            console.error("Failed to get local stream", err);
-            toast.error("Failed to access camera/mic.");
-        }
-    };
+        peersRef.current[selectedConversation._id] = peer;
+        navigate('/call');
+
+    } catch (err) {
+        console.error("Failed to get local stream", err);
+        toast.error("Failed to access camera/mic.");
+    }
+};
 
     const startGroupCall = async () => {
         try {
