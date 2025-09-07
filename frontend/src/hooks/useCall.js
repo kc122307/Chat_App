@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Peer from 'simple-peer';
+import wrtc from 'wrtc'; // Import WebRTC implementation for Node.js environment
 import { useNavigate } from 'react-router-dom';
 import { useSocketContext } from '../context/SocketContext';
 import useConversation from '../zustand/useConversation';
@@ -73,7 +74,7 @@ const useCall = () => {
             // Set video enabled state based on call type
             setIsVideoEnabled(!isAudioOnly);
 
-            const peer = new Peer({ initiator: false, trickle: false, stream });
+            const peer = new Peer({ initiator: false, trickle: false, stream, wrtc });
             peer.on('signal', (signal) => {
                 socket.emit('call-accepted', { to: incomingCall.from, signal });
             });
@@ -154,7 +155,7 @@ const useCall = () => {
         toast.dismiss();
         setLocalStream(stream);
 
-        const peer = new Peer({ initiator: true, trickle: false, stream });
+        const peer = new Peer({ initiator: true, trickle: false, stream, wrtc });
 
         peer.on('signal', (signal) => {
             if (socket) {
@@ -201,7 +202,7 @@ const startAudioCall = async () => {
         toast.dismiss();
         setLocalStream(stream);
 
-        const peer = new Peer({ initiator: true, trickle: false, stream });
+        const peer = new Peer({ initiator: true, trickle: false, stream, wrtc });
 
         peer.on('signal', (signal) => {
             if (socket) {
