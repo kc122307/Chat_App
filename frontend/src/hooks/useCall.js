@@ -90,7 +90,7 @@ const useCall = () => {
             setIsVideoEnabled(!isAudioOnly);
 
             try {
-                const peer = new Peer({ initiator: false, trickle: false, stream });
+                const peer = new Peer({ initiator: false, trickle: false, stream, objectMode: true });
                 peer.on('signal', (signal) => {
                     socket.emit('call-accepted', { to: incomingCall.from, signal });
                 });
@@ -201,7 +201,7 @@ const useCall = () => {
         setLocalStream(stream);
 
         try {
-            const peer = new Peer({ initiator: true, trickle: false, stream });
+            const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true });
 
             peer.on('signal', (signal) => {
                 if (socket) {
@@ -268,7 +268,7 @@ const startAudioCall = async () => {
         setLocalStream(stream);
 
         try {
-            const peer = new Peer({ initiator: true, trickle: false, stream });
+            const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true });
 
             peer.on('signal', (signal) => {
                 if (socket) {
