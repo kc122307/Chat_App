@@ -10,18 +10,26 @@ import useCall from "../../hooks/useCall";
 
 const MessageContainer = () => {
 	const { selectedConversation, setSelectedConversation } = useConversation();
-	const { startCall, startGroupCall } = useCall();
+	const { startVideoCall, startAudioCall, startGroupCall } = useCall();
 	const isGroup = selectedConversation && selectedConversation.members && Array.isArray(selectedConversation.members);
 
 	useEffect(() => {
 		return () => setSelectedConversation(null);
 	}, [setSelectedConversation]);
 
-	const handleCall = () => {
+	const handleVideoCall = () => {
 		if (isGroup) {
 			startGroupCall();
 		} else {
-			startCall();
+			startVideoCall();
+		}
+	};
+
+	const handleAudioCall = () => {
+		if (isGroup) {
+			startGroupCall();
+		} else {
+			startAudioCall();
 		}
 	};
 
@@ -40,10 +48,10 @@ const MessageContainer = () => {
 							</span>
 						</div>
 						<div className="flex gap-2">
-							<button onClick={handleCall} className="btn btn-sm btn-ghost text-gray-900">
+							<button onClick={handleVideoCall} className="btn btn-sm btn-ghost text-gray-900">
 								<IoVideocam className="w-5 h-5" />
 							</button>
-							<button onClick={handleCall} className="btn btn-sm btn-ghost text-gray-900">
+							<button onClick={handleAudioCall} className="btn btn-sm btn-ghost text-gray-900">
 								<IoCall className="w-5 h-5" />
 							</button>
 						</div>

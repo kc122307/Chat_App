@@ -31,8 +31,8 @@ export const SocketContextProvider = ({ children }) => {
             });
 
             // Listen for incoming calls
-            socket.on('call-received', ({ from, signal }) => {
-                setIncomingCall({ from, signal });
+            socket.on('call-received', ({ from, signal, callType }) => {
+                setIncomingCall({ from, signal, callType });
             });
             
             // Listen for call rejections

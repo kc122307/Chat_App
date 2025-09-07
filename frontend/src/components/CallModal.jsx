@@ -1,6 +1,7 @@
 import React from 'react';
 import { IoCall, IoCallOutline } from 'react-icons/io5';
 import { HiPhoneMissedCall } from 'react-icons/hi';
+import { FaVideo } from 'react-icons/fa';
 import useConversation from '../zustand/useConversation';
 
 const CallModal = ({ incomingCall, onAccept, onReject }) => {
@@ -9,11 +10,16 @@ const CallModal = ({ incomingCall, onAccept, onReject }) => {
 
     const callerName = selectedConversation?.fullName || 'Unknown User';
 
+    const isVideoCall = !incomingCall.callType || incomingCall.callType === 'video';
+    
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
             <div className="bg-gray-800 p-8 rounded-lg shadow-xl text-white text-center w-80">
-                <h3 className="text-2xl font-bold mb-2">Incoming Call</h3>
+                <h3 className="text-2xl font-bold mb-2">Incoming {isVideoCall ? 'Video' : 'Audio'} Call</h3>
                 <p className="text-gray-300 text-lg mb-4">{callerName}</p>
+                <div className="text-4xl mb-4">
+                    {isVideoCall ? <FaVideo /> : <IoCall />}
+                </div>
                 <div className="flex justify-around mt-6">
                     <button 
                         onClick={onAccept}

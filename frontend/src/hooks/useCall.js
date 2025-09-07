@@ -51,20 +51,35 @@ const useCall = () => {
     }, [localStream, navigate, selectedConversation, socket]);
 
     const acceptCall = useCallback(async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        setLocalStream(stream);
+        try {
+            // Check if it's an audio-only call
+            const isAudioOnly = incomingCall.callType === 'audio';
+            
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: !isAudioOnly, 
+                audio: true 
+            });
+            setLocalStream(stream);
+            
+            // Set video enabled state based on call type
+            setIsVideoEnabled(!isAudioOnly);
 
-        const peer = new Peer({ initiator: false, trickle: false, stream });
-        peer.on('signal', (signal) => {
-            socket.emit('call-accepted', { to: incomingCall.from, signal });
-        });
-        peer.on('stream', (stream) => {
-            setRemoteStreams({ [incomingCall.from]: stream });
-        });
-        peer.signal(incomingCall.signal);
-        peersRef.current[incomingCall.from] = peer;
-        setIncomingCall(null);
-        navigate('/call');
+            const peer = new Peer({ initiator: false, trickle: false, stream });
+            peer.on('signal', (signal) => {
+                socket.emit('call-accepted', { to: incomingCall.from, signal });
+            });
+            peer.on('stream', (stream) => {
+                setRemoteStreams({ [incomingCall.from]: stream });
+            });
+            peer.signal(incomingCall.signal);
+            peersRef.current[incomingCall.from] = peer;
+            setIncomingCall(null);
+            navigate('/call');
+        } catch (err) {
+            console.error("Failed to get local stream", err);
+            toast.error("Failed to access camera/mic.");
+            setIncomingCall(null);
+        }
     }, [incomingCall, navigate, setIncomingCall, socket]);
 
     useEffect(() => {
@@ -100,7 +115,7 @@ const useCall = () => {
         };
     }, [socket, endCall, setIncomingCall]);
 
-    const startCall = async () => {
+    const startVideoCall = async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         setLocalStream(stream);
@@ -108,8 +123,8 @@ const useCall = () => {
         const peer = new Peer({ initiator: true, trickle: false, stream });
 
         peer.on('signal', (signal) => {
-            if (socket) { // <--- ADD THIS CHECK
-                socket.emit('call-user', { userToCall: selectedConversation._id, signal });
+            if (socket) {
+                socket.emit('call-user', { userToCall: selectedConversation._id, signal, callType: 'video' });
             } else {
                 toast.error("Socket not connected. Please try again.");
             }
@@ -125,6 +140,34 @@ const useCall = () => {
     } catch (err) {
         console.error("Failed to get local stream", err);
         toast.error("Failed to access camera/mic.");
+    }
+};
+
+const startAudioCall = async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        setLocalStream(stream);
+
+        const peer = new Peer({ initiator: true, trickle: false, stream });
+
+        peer.on('signal', (signal) => {
+            if (socket) {
+                socket.emit('call-user', { userToCall: selectedConversation._id, signal, callType: 'audio' });
+            } else {
+                toast.error("Socket not connected. Please try again.");
+            }
+        });
+
+        peer.on('stream', (stream) => {
+            setRemoteStreams({ [selectedConversation._id]: stream });
+        });
+
+        peersRef.current[selectedConversation._id] = peer;
+        navigate('/call');
+
+    } catch (err) {
+        console.error("Failed to get local stream", err);
+        toast.error("Failed to access audio.");
     }
 };
 
@@ -147,7 +190,8 @@ const useCall = () => {
     return {
         localStream,
         remoteStreams,
-        startCall,
+        startVideoCall,
+        startAudioCall,
         startGroupCall,
         endCall,
         toggleAudio,

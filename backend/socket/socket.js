@@ -32,12 +32,13 @@ io.on("connection", (socket) => {
 	io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
     // Handle individual call invitation
-    socket.on("call-user", ({ userToCall, signal }) => {
+    socket.on("call-user", ({ userToCall, signal, callType }) => {
         const receiverSocketId = userSocketMap[userToCall];
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("call-received", {
                 from: userId,
-                signal: signal
+                signal: signal,
+                callType: callType || 'video' // Default to video if not specified
             });
         }
     });
