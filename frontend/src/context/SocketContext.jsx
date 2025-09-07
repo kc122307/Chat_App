@@ -39,6 +39,11 @@ export const SocketContextProvider = ({ children }) => {
             socket.on('call-rejected', () => {
                 setIncomingCall(null);
             });
+            
+            // Listen for call failures (user offline, etc.)
+            socket.on('call-failed', () => {
+                setIncomingCall(null);
+            });
 
             return () => socket.close();
         } else {

@@ -52,13 +52,22 @@ const useCall = () => {
 
     const acceptCall = useCallback(async () => {
         try {
+            // Check if the browser supports getUserMedia
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                toast.error("Your browser doesn't support calls.");
+                setIncomingCall(null);
+                return;
+            }
+
             // Check if it's an audio-only call
             const isAudioOnly = incomingCall.callType === 'audio';
             
+            toast.loading(`Accessing ${isAudioOnly ? 'microphone' : 'camera and microphone'}...`);
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: !isAudioOnly, 
                 audio: true 
             });
+            toast.dismiss();
             setLocalStream(stream);
             
             // Set video enabled state based on call type
@@ -76,8 +85,19 @@ const useCall = () => {
             setIncomingCall(null);
             navigate('/call');
         } catch (err) {
+            toast.dismiss();
             console.error("Failed to get local stream", err);
-            toast.error("Failed to access camera/mic.");
+            
+            // Provide more specific error messages based on the error type
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                toast.error("Permission denied. Please allow access to camera/microphone in your browser settings.");
+            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+                toast.error("No camera or microphone found. Please check your devices.");
+            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+                toast.error("Your camera or microphone is already in use by another application.");
+            } else {
+                toast.error("Failed to access camera/mic. Please check your permissions.");
+            }
             setIncomingCall(null);
         }
     }, [incomingCall, navigate, setIncomingCall, socket]);
@@ -100,6 +120,11 @@ const useCall = () => {
             toast.error("Call was rejected.");
             endCall();
         });
+        
+        socket.on('call-failed', ({ error, userToCall }) => {
+            toast.error(error || "Call failed. User may be offline.");
+            endCall();
+        });
 
         socket.on('call-ended', () => {
             toast("Call ended by other user.");
@@ -112,12 +137,21 @@ const useCall = () => {
             socket.off('call-accepted');
             socket.off('call-rejected');
             socket.off('call-ended');
+            socket.off('call-failed');
         };
     }, [socket, endCall, setIncomingCall]);
 
     const startVideoCall = async () => {
     try {
+        // Check if the browser supports getUserMedia
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            toast.error("Your browser doesn't support video calls.");
+            return;
+        }
+
+        toast.loading("Accessing camera and microphone...");
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        toast.dismiss();
         setLocalStream(stream);
 
         const peer = new Peer({ initiator: true, trickle: false, stream });
@@ -138,14 +172,33 @@ const useCall = () => {
         navigate('/call');
 
     } catch (err) {
+        toast.dismiss();
         console.error("Failed to get local stream", err);
-        toast.error("Failed to access camera/mic.");
+        
+        // Provide more specific error messages based on the error type
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+            toast.error("Camera or microphone permission denied. Please allow access in your browser settings.");
+        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+            toast.error("No camera or microphone found. Please check your devices.");
+        } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+            toast.error("Your camera or microphone is already in use by another application.");
+        } else {
+            toast.error("Failed to access camera/mic. Please check your permissions.");
+        }
     }
 };
 
 const startAudioCall = async () => {
     try {
+        // Check if the browser supports getUserMedia
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            toast.error("Your browser doesn't support audio calls.");
+            return;
+        }
+
+        toast.loading("Accessing microphone...");
         const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        toast.dismiss();
         setLocalStream(stream);
 
         const peer = new Peer({ initiator: true, trickle: false, stream });
@@ -166,14 +219,33 @@ const startAudioCall = async () => {
         navigate('/call');
 
     } catch (err) {
+        toast.dismiss();
         console.error("Failed to get local stream", err);
-        toast.error("Failed to access audio.");
+        
+        // Provide more specific error messages based on the error type
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+            toast.error("Microphone permission denied. Please allow access in your browser settings.");
+        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+            toast.error("No microphone found. Please check your devices.");
+        } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+            toast.error("Your microphone is already in use by another application.");
+        } else {
+            toast.error("Failed to access microphone. Please check your permissions.");
+        }
     }
 };
 
     const startGroupCall = async () => {
         try {
+            // Check if the browser supports getUserMedia
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                toast.error("Your browser doesn't support video calls.");
+                return;
+            }
+
+            toast.loading("Accessing camera and microphone...");
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            toast.dismiss();
             setLocalStream(stream);
 
             // This is a basic group call implementation
@@ -182,8 +254,19 @@ const startAudioCall = async () => {
             navigate('/call');
 
         } catch (err) {
+            toast.dismiss();
             console.error("Failed to get local stream", err);
-            toast.error("Failed to access camera/mic.");
+            
+            // Provide more specific error messages based on the error type
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                toast.error("Camera or microphone permission denied. Please allow access in your browser settings.");
+            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+                toast.error("No camera or microphone found. Please check your devices.");
+            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+                toast.error("Your camera or microphone is already in use by another application.");
+            } else {
+                toast.error("Failed to access camera/mic. Please check your permissions.");
+            }
         }
     };
 

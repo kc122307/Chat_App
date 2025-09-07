@@ -35,10 +35,17 @@ io.on("connection", (socket) => {
     socket.on("call-user", ({ userToCall, signal, callType }) => {
         const receiverSocketId = userSocketMap[userToCall];
         if (receiverSocketId) {
+            // User is online, send the call signal
             io.to(receiverSocketId).emit("call-received", {
                 from: userId,
                 signal: signal,
                 callType: callType || 'video' // Default to video if not specified
+            });
+        } else {
+            // User is offline, notify the caller
+            socket.emit("call-failed", {
+                error: "User is offline",
+                userToCall
             });
         }
     });
