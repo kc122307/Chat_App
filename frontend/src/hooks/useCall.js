@@ -1,16 +1,24 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Peer from 'simple-peer';
-import wrtc from 'wrtc'; // Import WebRTC implementation for Node.js environment
 import { useNavigate } from 'react-router-dom';
 import { useSocketContext } from '../context/SocketContext';
 import useConversation from '../zustand/useConversation';
 import toast from 'react-hot-toast';
+
+// Check if the browser supports WebRTC
+const checkWebRTCSupport = () => {
+    return !!(navigator.mediaDevices && 
+              navigator.mediaDevices.getUserMedia && 
+              window.RTCPeerConnection && 
+              window.RTCSessionDescription);
+};
 
 const useCall = () => {
     const [localStream, setLocalStream] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({});
     const [isAudioEnabled, setIsAudioEnabled] = useState(true);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const [isWebRTCSupported, setIsWebRTCSupported] = useState(true);
     const { socket } = useSocketContext();
     const { selectedConversation, incomingCall, setIncomingCall } = useConversation();
     const navigate = useNavigate();
@@ -53,6 +61,13 @@ const useCall = () => {
 
     const acceptCall = useCallback(async () => {
         try {
+            // Check if the browser supports WebRTC
+            if (!isWebRTCSupported) {
+                toast.error("Your browser doesn't support WebRTC for calls.");
+                setIncomingCall(null);
+                return;
+            }
+            
             // Check if the browser supports getUserMedia
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 toast.error("Your browser doesn't support calls.");
@@ -74,17 +89,32 @@ const useCall = () => {
             // Set video enabled state based on call type
             setIsVideoEnabled(!isAudioOnly);
 
-            const peer = new Peer({ initiator: false, trickle: false, stream, wrtc });
-            peer.on('signal', (signal) => {
-                socket.emit('call-accepted', { to: incomingCall.from, signal });
-            });
-            peer.on('stream', (stream) => {
-                setRemoteStreams({ [incomingCall.from]: stream });
-            });
-            peer.signal(incomingCall.signal);
-            peersRef.current[incomingCall.from] = peer;
-            setIncomingCall(null);
-            navigate('/call');
+            try {
+                const peer = new Peer({ initiator: false, trickle: false, stream });
+                peer.on('signal', (signal) => {
+                    socket.emit('call-accepted', { to: incomingCall.from, signal });
+                });
+                peer.on('stream', (stream) => {
+                    setRemoteStreams({ [incomingCall.from]: stream });
+                });
+                peer.on('error', (err) => {
+                    console.error("Peer connection error:", err);
+                    toast.error("Error in call connection");
+                    endCall();
+                });
+                peer.signal(incomingCall.signal);
+                peersRef.current[incomingCall.from] = peer;
+                setIncomingCall(null);
+                navigate('/call');
+            } catch (peerError) {
+                console.error("Failed to create peer connection", peerError);
+                toast.error("Failed to establish call connection");
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                setLocalStream(null);
+                setIncomingCall(null);
+            }
         } catch (err) {
             toast.dismiss();
             console.error("Failed to get local stream", err);
@@ -101,7 +131,16 @@ const useCall = () => {
             }
             setIncomingCall(null);
         }
-    }, [incomingCall, navigate, setIncomingCall, socket]);
+    }, [incomingCall, navigate, setIncomingCall, socket, isWebRTCSupported, endCall]);
+
+    // Check WebRTC support when component mounts
+    useEffect(() => {
+        const supported = checkWebRTCSupport();
+        setIsWebRTCSupported(supported);
+        if (!supported) {
+            toast.error("Your browser doesn't fully support WebRTC. Video/audio calls may not work properly.");
+        }
+    }, []);
 
     useEffect(() => {
         if (!socket) return;
@@ -144,6 +183,12 @@ const useCall = () => {
 
     const startVideoCall = async () => {
     try {
+        // Check if the browser supports WebRTC
+        if (!isWebRTCSupported) {
+            toast.error("Your browser doesn't support WebRTC for video calls.");
+            return;
+        }
+        
         // Check if the browser supports getUserMedia
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             toast.error("Your browser doesn't support video calls.");
@@ -155,23 +200,37 @@ const useCall = () => {
         toast.dismiss();
         setLocalStream(stream);
 
-        const peer = new Peer({ initiator: true, trickle: false, stream, wrtc });
+        try {
+            const peer = new Peer({ initiator: true, trickle: false, stream });
 
-        peer.on('signal', (signal) => {
-            if (socket) {
-                socket.emit('call-user', { userToCall: selectedConversation._id, signal, callType: 'video' });
-            } else {
-                toast.error("Socket not connected. Please try again.");
+            peer.on('signal', (signal) => {
+                if (socket) {
+                    socket.emit('call-user', { userToCall: selectedConversation._id, signal, callType: 'video' });
+                } else {
+                    toast.error("Socket not connected. Please try again.");
+                }
+            });
+
+            peer.on('stream', (stream) => {
+                setRemoteStreams({ [selectedConversation._id]: stream });
+            });
+            
+            peer.on('error', (err) => {
+                console.error("Peer connection error:", err);
+                toast.error("Error in call connection");
+                endCall();
+            });
+
+            peersRef.current[selectedConversation._id] = peer;
+            navigate('/call');
+        } catch (peerError) {
+            console.error("Failed to create peer connection", peerError);
+            toast.error("Failed to establish call connection");
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
             }
-        });
-
-        peer.on('stream', (stream) => {
-            setRemoteStreams({ [selectedConversation._id]: stream });
-        });
-
-        peersRef.current[selectedConversation._id] = peer;
-        navigate('/call');
-
+            setLocalStream(null);
+        }
     } catch (err) {
         toast.dismiss();
         console.error("Failed to get local stream", err);
@@ -191,6 +250,12 @@ const useCall = () => {
 
 const startAudioCall = async () => {
     try {
+        // Check if the browser supports WebRTC
+        if (!isWebRTCSupported) {
+            toast.error("Your browser doesn't support WebRTC for audio calls.");
+            return;
+        }
+        
         // Check if the browser supports getUserMedia
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             toast.error("Your browser doesn't support audio calls.");
@@ -202,23 +267,37 @@ const startAudioCall = async () => {
         toast.dismiss();
         setLocalStream(stream);
 
-        const peer = new Peer({ initiator: true, trickle: false, stream, wrtc });
+        try {
+            const peer = new Peer({ initiator: true, trickle: false, stream });
 
-        peer.on('signal', (signal) => {
-            if (socket) {
-                socket.emit('call-user', { userToCall: selectedConversation._id, signal, callType: 'audio' });
-            } else {
-                toast.error("Socket not connected. Please try again.");
+            peer.on('signal', (signal) => {
+                if (socket) {
+                    socket.emit('call-user', { userToCall: selectedConversation._id, signal, callType: 'audio' });
+                } else {
+                    toast.error("Socket not connected. Please try again.");
+                }
+            });
+
+            peer.on('stream', (stream) => {
+                setRemoteStreams({ [selectedConversation._id]: stream });
+            });
+            
+            peer.on('error', (err) => {
+                console.error("Peer connection error:", err);
+                toast.error("Error in call connection");
+                endCall();
+            });
+
+            peersRef.current[selectedConversation._id] = peer;
+            navigate('/call');
+        } catch (peerError) {
+            console.error("Failed to create peer connection", peerError);
+            toast.error("Failed to establish call connection");
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
             }
-        });
-
-        peer.on('stream', (stream) => {
-            setRemoteStreams({ [selectedConversation._id]: stream });
-        });
-
-        peersRef.current[selectedConversation._id] = peer;
-        navigate('/call');
-
+            setLocalStream(null);
+        }
     } catch (err) {
         toast.dismiss();
         console.error("Failed to get local stream", err);
@@ -282,6 +361,7 @@ const startAudioCall = async () => {
         toggleVideo,
         isAudioEnabled,
         isVideoEnabled,
+        isWebRTCSupported,
         acceptCall,
         rejectCall
     };

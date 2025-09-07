@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 import useCall from '../hooks/useCall';
 
 const CallPage = () => {
-    const { localStream, remoteStreams, endCall, toggleAudio, toggleVideo, isAudioEnabled, isVideoEnabled } = useCall();
+    const { localStream, remoteStreams, endCall, toggleAudio, toggleVideo, isAudioEnabled, isVideoEnabled, isWebRTCSupported } = useCall();
     const navigate = useNavigate();
     const localVideoRef = useRef();
     const [isAudioOnlyCall, setIsAudioOnlyCall] = useState(false);
@@ -29,6 +29,11 @@ const CallPage = () => {
 
     return (
         <div className="flex flex-col items-center justify-center w-full h-full bg-gray-900 text-white p-4 relative">
+            {!isWebRTCSupported && (
+                <div className="absolute top-0 left-0 right-0 bg-red-500 text-white p-2 text-center z-50">
+                    Warning: Your browser doesn't fully support WebRTC. Call quality may be affected.
+                </div>
+            )}
             {isAudioOnlyCall ? (
                 <div className="flex items-center justify-center w-full h-full">
                     <div className="text-center p-8 bg-gray-800 rounded-lg shadow-lg">

@@ -7,10 +7,11 @@ import { TiMessages } from "react-icons/ti";
 import { useAuthContext } from "../../context/AuthContext";
 import { IoCall, IoVideocam } from "react-icons/io5";
 import useCall from "../../hooks/useCall";
+import toast from "react-hot-toast";
 
 const MessageContainer = () => {
 	const { selectedConversation, setSelectedConversation } = useConversation();
-	const { startVideoCall, startAudioCall, startGroupCall } = useCall();
+	const { startVideoCall, startAudioCall, startGroupCall, isWebRTCSupported } = useCall();
 	const isGroup = selectedConversation && selectedConversation.members && Array.isArray(selectedConversation.members);
 
 	useEffect(() => {
@@ -18,6 +19,10 @@ const MessageContainer = () => {
 	}, [setSelectedConversation]);
 
 	const handleVideoCall = () => {
+		if (!isWebRTCSupported) {
+			toast.error("Your browser doesn't fully support video calls. Please use a modern browser like Chrome or Firefox.");
+			return;
+		}
 		if (isGroup) {
 			startGroupCall();
 		} else {
@@ -26,6 +31,10 @@ const MessageContainer = () => {
 	};
 
 	const handleAudioCall = () => {
+		if (!isWebRTCSupported) {
+			toast.error("Your browser doesn't fully support audio calls. Please use a modern browser like Chrome or Firefox.");
+			return;
+		}
 		if (isGroup) {
 			startGroupCall();
 		} else {
