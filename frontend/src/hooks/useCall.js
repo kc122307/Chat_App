@@ -90,7 +90,8 @@ const useCall = () => {
             setIsVideoEnabled(!isAudioOnly);
 
             try {
-                const peer = new Peer({ initiator: false, trickle: false, stream, objectMode: true });
+                // Create peer with explicit wrtc: undefined to force browser WebRTC API usage
+            const peer = new Peer({ initiator: false, trickle: false, stream, objectMode: true, wrtc: undefined });
                 peer.on('signal', (signal) => {
                     socket.emit('call-accepted', { to: incomingCall.from, signal });
                 });
@@ -201,7 +202,8 @@ const useCall = () => {
         setLocalStream(stream);
 
         try {
-            const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true });
+            // Create peer with explicit wrtc: undefined to force browser WebRTC API usage
+            const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true, wrtc: undefined });
 
             peer.on('signal', (signal) => {
                 if (socket) {
@@ -268,7 +270,8 @@ const startAudioCall = async () => {
         setLocalStream(stream);
 
         try {
-            const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true });
+            // Create peer with explicit wrtc: undefined to force browser WebRTC API usage
+            const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true, wrtc: undefined });
 
             peer.on('signal', (signal) => {
                 if (socket) {

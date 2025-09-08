@@ -12,6 +12,7 @@ import "zustand";
 import "react-router-dom";
 import "react-hot-toast";
 import "react-icons";
+import 'webrtc-adapter';
 
 ReactDOM.createRoot(document.getElementById("root")).render(
 	<React.StrictMode>
