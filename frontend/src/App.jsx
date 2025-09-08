@@ -8,8 +8,9 @@ import Groups from "./pages/groups/Groups";
 import MainLayout from "./components/MainLayout";
 import { Toaster } from "react-hot-toast";
 import { useAuthContext } from "./context/AuthContext";
-// Import CallPage
-import CallPage from "./components/CallPage";
+// Import Room Pages
+import RoomPage from "./pages/room/RoomPage";
+import VideoRoom from "./pages/room/VideoRoom";
 
 function App() {
 	const { authUser } = useAuthContext();
@@ -54,10 +55,23 @@ function App() {
 				/>
 				
 				<Route 
-					path='/call' 
+					path='/rooms' 
 					element={
 						authUser ? (
-							<CallPage />
+							<MainLayout>
+								<RoomPage />
+							</MainLayout>
+						) : (
+							<Navigate to={"/login"} />
+						)
+					}
+				/>
+				
+				<Route 
+					path='/rooms/:roomId' 
+					element={
+						authUser ? (
+							<VideoRoom />
 						) : (
 							<Navigate to={"/login"} />
 						)

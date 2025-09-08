@@ -5,16 +5,13 @@ import { AiOutlineClose } from "react-icons/ai";
 import { NavLink } from "react-router-dom";
 import { useAuthContext } from "../context/AuthContext";
 import LogoutButton from "./sidebar/LogoutButton";
-import CallModal from './CallModal';
 import useConversation from '../zustand/useConversation';
-import useCall from '../hooks/useCall';
 
 const MainLayout = ({ children }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { authUser } = useAuthContext();
     const profilePic = authUser?.profilePic;
-    const { incomingCall } = useConversation();
-    const { acceptCall, rejectCall } = useCall();
+    const { selectedConversation } = useConversation();
 
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
@@ -69,6 +66,14 @@ const MainLayout = ({ children }) => {
                             <span className='text-lg'>👤</span>
                             Profile
                         </NavLink>
+                        <NavLink 
+                            to='/rooms' 
+                            className={({ isActive }) => `flex items-center gap-2 p-2 rounded-md transition-colors duration-200 hover:bg-gray-700 ${isActive ? 'bg-sky-500' : ''}`}
+                            onClick={() => setIsSidebarOpen(false)}
+                        >
+                            <span className='text-lg'>🎥</span>
+                            Video Rooms
+                        </NavLink>
                     </nav>
 
                     {/* Logout Button */}
@@ -83,8 +88,7 @@ const MainLayout = ({ children }) => {
                 {children}
             </div>
 
-            {/* Call Modal Overlay */}
-            <CallModal incomingCall={incomingCall} onAccept={acceptCall} onReject={rejectCall} />
+            {/* Main content area */}
         </div>
     );
 };
