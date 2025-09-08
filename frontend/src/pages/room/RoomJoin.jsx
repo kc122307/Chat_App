@@ -34,8 +34,6 @@ const RoomJoin = () => {
             socket.once('video-room-check-result', (data) => {
                 setIsJoining(false);
                 if (data.exists) {
-                    // Save room to localStorage before navigating
-                    saveRoomToLocalStorage(roomCode);
                     navigate(`/rooms/${roomCode}`);
                 } else {
                     toast.error('Room not found. Please check the code and try again.');
@@ -53,34 +51,6 @@ const RoomJoin = () => {
         }
     };
 
-    // Save room to localStorage
-    const saveRoomToLocalStorage = (roomId) => {
-        try {
-            const storedRooms = localStorage.getItem('recentRooms');
-            let rooms = storedRooms ? JSON.parse(storedRooms) : [];
-            
-            // Check if room already exists
-            const existingRoomIndex = rooms.findIndex(room => room.id === roomId);
-            
-            // If room exists, remove it to add it to the top
-            if (existingRoomIndex !== -1) {
-                rooms.splice(existingRoomIndex, 1);
-            }
-            
-            // Add room to the beginning of the array
-            rooms.unshift({
-                id: roomId,
-                joinedAt: new Date().toISOString()
-            });
-            
-            // Keep only the 5 most recent rooms
-            rooms = rooms.slice(0, 5);
-            
-            localStorage.setItem('recentRooms', JSON.stringify(rooms));
-        } catch (error) {
-            console.error('Failed to save room to localStorage:', error);
-        }
-    };
     
     return (
         <div className="flex flex-col items-center">

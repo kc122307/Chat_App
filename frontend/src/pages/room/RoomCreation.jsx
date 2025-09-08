@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaVideo, FaCopy } from 'react-icons/fa';
+import { FaVideo, FaCopy, FaShare, FaSearch, FaTimes } from 'react-icons/fa';
 import { useSocketContext } from '../../context/SocketContext';
 import { useAuthContext } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -8,6 +8,15 @@ import toast from 'react-hot-toast';
 const RoomCreation = () => {
     const [roomCode, setRoomCode] = useState('');
     const [isCreating, setIsCreating] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [contacts, setContacts] = useState([
+        { id: 1, name: 'John Doe', avatar: 'https://randomuser.me/api/portraits/men/1.jpg' },
+        { id: 2, name: 'Jane Smith', avatar: 'https://randomuser.me/api/portraits/women/1.jpg' },
+        { id: 3, name: 'Mike Johnson', avatar: 'https://randomuser.me/api/portraits/men/2.jpg' },
+        { id: 4, name: 'Sarah Williams', avatar: 'https://randomuser.me/api/portraits/women/2.jpg' },
+        { id: 5, name: 'David Brown', avatar: 'https://randomuser.me/api/portraits/men/3.jpg' },
+    ]);
     const { socket } = useSocketContext();
     const { authUser } = useAuthContext();
     const navigate = useNavigate();
@@ -58,38 +67,30 @@ const RoomCreation = () => {
     };
 
     const joinCreatedRoom = () => {
-        // Save room to localStorage before navigating
-        saveRoomToLocalStorage(roomCode);
         navigate(`/rooms/${roomCode}`);
     };
     
-    // Save room to localStorage
-    const saveRoomToLocalStorage = (roomId) => {
-        try {
-            const storedRooms = localStorage.getItem('recentRooms');
-            let rooms = storedRooms ? JSON.parse(storedRooms) : [];
-            
-            // Check if room already exists
-            const existingRoomIndex = rooms.findIndex(room => room.id === roomId);
-            
-            // If room exists, remove it to add it to the top
-            if (existingRoomIndex !== -1) {
-                rooms.splice(existingRoomIndex, 1);
-            }
-            
-            // Add room to the beginning of the array
-            rooms.unshift({
-                id: roomId,
-                joinedAt: new Date().toISOString()
-            });
-            
-            // Keep only the 5 most recent rooms
-            rooms = rooms.slice(0, 5);
-            
-            localStorage.setItem('recentRooms', JSON.stringify(rooms));
-        } catch (error) {
-            console.error('Failed to save room to localStorage:', error);
-        }
+    const openShareModal = () => {
+        setShowShareModal(true);
+    };
+    
+    const closeShareModal = () => {
+        setShowShareModal(false);
+        setSearchQuery('');
+    };
+    
+    const handleSearchChange = (e) => {
+        setSearchQuery(e.target.value);
+    };
+    
+    const filteredContacts = contacts.filter(contact => 
+        contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    
+    const shareWithContact = (contactId) => {
+        const contact = contacts.find(c => c.id === contactId);
+        toast.success(`Room code shared with ${contact.name}`);
+        // In a real app, you would send the room code to the contact via your backend
     };
 
     return (
@@ -126,12 +127,81 @@ const RoomCreation = () => {
                         </div>
                     </div>
                     
-                    <button
-                        onClick={joinCreatedRoom}
-                        className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                    >
-                        Enter Room
-                    </button>
+                    <div className="flex gap-2 mb-4">
+                        <button
+                            onClick={joinCreatedRoom}
+                            className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                        >
+                            Enter Room
+                        </button>
+                        <button
+                            onClick={openShareModal}
+                            className="py-3 px-4 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors flex items-center justify-center"
+                        >
+                            <FaShare className="mr-2" /> Share
+                        </button>
+                    </div>
+                </div>
+            )}
+            
+            {/* Share Modal */}
+            {showShareModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-gray-900 rounded-lg shadow-lg w-full max-w-md p-6 relative">
+                        <button 
+                            onClick={closeShareModal}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                        >
+                            <FaTimes />
+                        </button>
+                        
+                        <h3 className="text-xl font-bold mb-4">Share Room Code</h3>
+                        
+                        <div className="bg-gray-800 p-3 rounded-lg font-mono text-xl text-center mb-4">
+                            {roomCode}
+                        </div>
+                        
+                        <div className="relative mb-4">
+                            <FaSearch className="absolute left-3 top-3 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Search contacts..."
+                                value={searchQuery}
+                                onChange={handleSearchChange}
+                                className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                            />
+                        </div>
+                        
+                        <div className="max-h-60 overflow-y-auto">
+                            {filteredContacts.length > 0 ? (
+                                <div className="space-y-2">
+                                    {filteredContacts.map(contact => (
+                                        <div 
+                                            key={contact.id}
+                                            className="flex items-center justify-between bg-gray-800 p-3 rounded-lg hover:bg-gray-700"
+                                        >
+                                            <div className="flex items-center">
+                                                <img 
+                                                    src={contact.avatar} 
+                                                    alt={contact.name} 
+                                                    className="w-10 h-10 rounded-full mr-3"
+                                                />
+                                                <span>{contact.name}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => shareWithContact(contact.id)}
+                                                className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-1 rounded text-sm"
+                                            >
+                                                Share
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-center text-gray-400 py-4">No contacts found</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
