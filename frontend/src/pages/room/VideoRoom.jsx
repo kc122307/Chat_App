@@ -37,9 +37,41 @@ const VideoRoom = () => {
         }
     }, []);
     
+    // Save room to localStorage
+    const saveRoomToLocalStorage = (roomId) => {
+        try {
+            const storedRooms = localStorage.getItem('recentRooms');
+            let rooms = storedRooms ? JSON.parse(storedRooms) : [];
+            
+            // Check if room already exists
+            const existingRoomIndex = rooms.findIndex(room => room.id === roomId);
+            
+            // If room exists, remove it to add it to the top
+            if (existingRoomIndex !== -1) {
+                rooms.splice(existingRoomIndex, 1);
+            }
+            
+            // Add room to the beginning of the array
+            rooms.unshift({
+                id: roomId,
+                joinedAt: new Date().toISOString()
+            });
+            
+            // Keep only the 5 most recent rooms
+            rooms = rooms.slice(0, 5);
+            
+            localStorage.setItem('recentRooms', JSON.stringify(rooms));
+        } catch (error) {
+            console.error('Failed to save room to localStorage:', error);
+        }
+    };
+    
     // Initialize media stream and join room
     useEffect(() => {
         if (!socket || !roomId || !authUser) return;
+        
+        // Save room to localStorage when joining directly via URL
+        saveRoomToLocalStorage(roomId);
         
         const setupMediaAndJoinRoom = async () => {
             try {
