@@ -1,22 +1,46 @@
+// src/pages/room/RoomCreation.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaVideo, FaCopy, FaShare, FaSearch, FaTimes } from 'react-icons/fa';
 import { useSocketContext } from '../../context/SocketContext';
 import { useAuthContext } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import useGetConversations from '../../hooks/useGetConversations'; // Import the hook to get conversations
+import useSendMessage from '../../hooks/useSendMessage'; // Import the message hook
+import useConversation from '../../zustand/useConversation'; // Import the conversation store
+
+// This is a custom hook to handle the specific logic of sending a room code message
+const useSendRoomCode = () => {
+    const { loading, sendMessage } = useSendMessage();
+    const { setSelectedConversation } = useConversation();
+
+    const sendRoomCode = async (receiverId, roomCode) => {
+        // Create a temporary conversation object for the message hook to work
+        const tempConversation = {
+            _id: receiverId,
+        };
+        setSelectedConversation(tempConversation);
+        
+        const message = `Join my video room: ${roomCode}`;
+        
+        await sendMessage({ message });
+
+        setSelectedConversation(null); // Clear the selected conversation after sending
+    };
+
+    return { loading, sendRoomCode };
+};
 
 const RoomCreation = () => {
     const [roomCode, setRoomCode] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [contacts, setContacts] = useState([
-        { id: 1, name: 'John Doe', avatar: 'https://randomuser.me/api/portraits/men/1.jpg' },
-        { id: 2, name: 'Jane Smith', avatar: 'https://randomuser.me/api/portraits/women/1.jpg' },
-        { id: 3, name: 'Mike Johnson', avatar: 'https://randomuser.me/api/portraits/men/2.jpg' },
-        { id: 4, name: 'Sarah Williams', avatar: 'https://randomuser.me/api/portraits/women/2.jpg' },
-        { id: 5, name: 'David Brown', avatar: 'https://randomuser.me/api/portraits/men/3.jpg' },
-    ]);
+    
+    // Use the real conversation list from your hook
+    const { loading: conversationsLoading, conversations } = useGetConversations();
+    const { loading: sending, sendRoomCode } = useSendRoomCode();
+
     const { socket } = useSocketContext();
     const { authUser } = useAuthContext();
     const navigate = useNavigate();
@@ -83,14 +107,18 @@ const RoomCreation = () => {
         setSearchQuery(e.target.value);
     };
     
-    const filteredContacts = contacts.filter(contact => 
-        contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+    // Filter the real conversations based on the search query
+    const filteredConversations = conversations.filter(conversation => 
+        conversation.fullName.toLowerCase().includes(searchQuery.toLowerCase())
     );
     
-    const shareWithContact = (contactId) => {
-        const contact = contacts.find(c => c.id === contactId);
-        toast.success(`Room code shared with ${contact.name}`);
-        // In a real app, you would send the room code to the contact via your backend
+    const handleShareWithContact = (contactId) => {
+        sendRoomCode(contactId, roomCode);
+        const contact = conversations.find(c => c._id === contactId);
+        if (contact) {
+            toast.success(`Room code sent to ${contact.fullName}!`);
+        }
+        closeShareModal();
     };
 
     return (
@@ -173,23 +201,25 @@ const RoomCreation = () => {
                         </div>
                         
                         <div className="max-h-60 overflow-y-auto">
-                            {filteredContacts.length > 0 ? (
+                            {conversationsLoading || sending ? (
+                                <p className="text-center text-gray-400 py-4">Loading contacts...</p>
+                            ) : filteredConversations.length > 0 ? (
                                 <div className="space-y-2">
-                                    {filteredContacts.map(contact => (
+                                    {filteredConversations.map(contact => (
                                         <div 
-                                            key={contact.id}
+                                            key={contact._id}
                                             className="flex items-center justify-between bg-gray-800 p-3 rounded-lg hover:bg-gray-700"
                                         >
                                             <div className="flex items-center">
                                                 <img 
-                                                    src={contact.avatar} 
-                                                    alt={contact.name} 
+                                                    src={contact.profilePic} 
+                                                    alt={contact.fullName} 
                                                     className="w-10 h-10 rounded-full mr-3"
                                                 />
-                                                <span>{contact.name}</span>
+                                                <span>{contact.fullName}</span>
                                             </div>
                                             <button
-                                                onClick={() => shareWithContact(contact.id)}
+                                                onClick={() => handleShareWithContact(contact._id)}
                                                 className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-1 rounded text-sm"
                                             >
                                                 Share
