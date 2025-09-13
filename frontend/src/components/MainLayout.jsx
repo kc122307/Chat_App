@@ -18,7 +18,7 @@ const MainLayout = ({ children }) => {
     };
 
     return (
-        <div className='relative h-screen flex w-full max-w-7xl rounded-lg overflow-hidden bg-gray-400 bg-clip-padding backdrop-filter backdrop-blur-lg bg-opacity-0'>
+        <div className='relative h-screen flex flex-col md:flex-row w-full max-w-7xl rounded-lg overflow-hidden bg-gray-400 bg-clip-padding backdrop-filter backdrop-blur-lg bg-opacity-0'>
             {/* Hamburger Menu Button */}
             <div className='fixed top-4 left-4 z-50 text-white cursor-pointer md:hidden'>
                 <button onClick={toggleSidebar} className='btn btn-circle bg-gray-600 text-white'>
