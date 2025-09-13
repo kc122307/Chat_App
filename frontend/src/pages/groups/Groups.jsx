@@ -10,12 +10,12 @@ const Groups = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedGroup, setSelectedGroup] = useState(null);
 
-    const handleOpenModal = () => setIsModalOpen(true);
-    const handleCloseModal = () => setIsModalOpen(false);
+    const handleOpenModal = () => setIsModalModal(true);
+    const handleCloseModal = () => setIsModalModal(false);
 
     return (
-        <div className='flex h-full w-full'>
-            <div className='border-r border-slate-500 p-4 flex flex-col w-full h-full'>
+        <div className='flex flex-col md:flex-row h-full w-full'>
+            <div className='border-r border-slate-500 p-4 flex flex-col w-full md:w-64 h-full'>
                 <SearchInput />
                 <div className='divider px-3'></div>
                 <GroupList onSelectGroup={setSelectedGroup} />
