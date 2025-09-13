@@ -5,31 +5,9 @@ import { FaVideo, FaCopy, FaShare, FaSearch, FaTimes } from 'react-icons/fa';
 import { useSocketContext } from '../../context/SocketContext';
 import { useAuthContext } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
-import useGetConversations from '../../hooks/useGetConversations'; // Import the hook to get conversations
-import useSendMessage from '../../hooks/useSendMessage'; // Import the message hook
-import useConversation from '../../zustand/useConversation'; // Import the conversation store
-
-// This is a custom hook to handle the specific logic of sending a room code message
-const useSendRoomCode = () => {
-    const { loading, sendMessage } = useSendMessage();
-    const { setSelectedConversation } = useConversation();
-
-    const sendRoomCode = async (receiverId, roomCode) => {
-        // Create a temporary conversation object for the message hook to work
-        const tempConversation = {
-            _id: receiverId,
-        };
-        setSelectedConversation(tempConversation);
-        
-        const message = `Join my video room: ${roomCode}`;
-        
-        await sendMessage({ message });
-
-        setSelectedConversation(null); // Clear the selected conversation after sending
-    };
-
-    return { loading, sendRoomCode };
-};
+import useGetConversations from '../../hooks/useGetConversations';
+import useSendMessage from '../../hooks/useSendMessage';
+import useConversation from '../../zustand/useConversation';
 
 const RoomCreation = () => {
     const [roomCode, setRoomCode] = useState('');
@@ -39,7 +17,8 @@ const RoomCreation = () => {
     
     // Use the real conversation list from your hook
     const { loading: conversationsLoading, conversations } = useGetConversations();
-    const { loading: sending, sendRoomCode } = useSendRoomCode();
+    const { loading: sending, sendMessage } = useSendMessage();
+    const { setSelectedConversation } = useConversation();
 
     const { socket } = useSocketContext();
     const { authUser } = useAuthContext();
@@ -112,9 +91,15 @@ const RoomCreation = () => {
         conversation.fullName.toLowerCase().includes(searchQuery.toLowerCase())
     );
     
-    const handleShareWithContact = (contactId) => {
-        sendRoomCode(contactId, roomCode);
-        const contact = conversations.find(c => c._id === contactId);
+    const handleShareWithContact = async (contact) => {
+        setSelectedConversation(contact);
+        
+        const message = `Join my video room: ${roomCode}`;
+        
+        await sendMessage({ message });
+        
+        setSelectedConversation(null);
+
         if (contact) {
             toast.success(`Room code sent to ${contact.fullName}!`);
         }
@@ -219,7 +204,7 @@ const RoomCreation = () => {
                                                 <span>{contact.fullName}</span>
                                             </div>
                                             <button
-                                                onClick={() => handleShareWithContact(contact._id)}
+                                                onClick={() => handleShareWithContact(contact)}
                                                 className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-1 rounded text-sm"
                                             >
                                                 Share
