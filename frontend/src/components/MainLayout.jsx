@@ -18,7 +18,7 @@ const MainLayout = ({ children }) => {
     };
 
     return (
-        <div className='relative h-screen flex flex-col md:flex-row w-full max-w-7xl rounded-lg overflow-hidden bg-gray-400 bg-clip-padding backdrop-filter backdrop-blur-lg bg-opacity-0'>
+        <div className='relative h-screen flex w-full max-w-7xl rounded-lg overflow-hidden bg-gray-400 bg-clip-padding backdrop-filter backdrop-blur-lg bg-opacity-0'>
             {/* Hamburger Menu Button */}
             <div className='fixed top-4 left-4 z-50 text-white cursor-pointer md:hidden'>
                 <button onClick={toggleSidebar} className='btn btn-circle bg-gray-600 text-white'>
@@ -28,7 +28,7 @@ const MainLayout = ({ children }) => {
 
             {/* Hidden Sidebar */}
             <div
-                className={`fixed top-0 left-0 w-full h-full bg-gray-800 text-white p-4 transition-transform duration-300 ease-in-out z-40 
+                className={`fixed top-0 left-0 w-64 h-full bg-gray-800 text-white p-4 transition-transform duration-300 ease-in-out z-40 
                 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} md:static md:translate-x-0 md:w-64`}
             >
                 <div className='flex flex-col h-full'>
