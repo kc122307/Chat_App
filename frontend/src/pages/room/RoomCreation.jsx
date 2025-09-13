@@ -18,14 +18,13 @@ const RoomCreation = () => {
     // Use the real conversation list from your hook
     const { loading: conversationsLoading, conversations } = useGetConversations();
     const { loading: sending, sendMessage } = useSendMessage();
-    const { setSelectedConversation } = useConversation();
+    const { setSelectedConversation, selectedConversation } = useConversation();
 
     const { socket } = useSocketContext();
     const { authUser } = useAuthContext();
     const navigate = useNavigate();
 
     const generateRoomCode = () => {
-        // Generate a random 6-character alphanumeric code
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let result = '';
         for (let i = 0; i < 6; i++) {
@@ -39,20 +38,17 @@ const RoomCreation = () => {
         const newRoomCode = generateRoomCode();
         
         if (socket) {
-            // Create room on server
             socket.emit('create-video-room', { 
                 userId: authUser._id,
                 userName: authUser.fullName
             });
             
-            // Listen for room creation confirmation
             socket.once('video-room-created', (data) => {
                 setRoomCode(data.id);
                 setIsCreating(false);
                 toast.success('Room created successfully!');
             });
             
-            // Handle errors
             socket.once('room-error', (error) => {
                 setIsCreating(false);
                 toast.error(error.message || 'Failed to create room');
@@ -86,24 +82,28 @@ const RoomCreation = () => {
         setSearchQuery(e.target.value);
     };
     
-    // Filter the real conversations based on the search query
     const filteredConversations = conversations.filter(conversation => 
         conversation.fullName.toLowerCase().includes(searchQuery.toLowerCase())
     );
     
     const handleShareWithContact = async (contact) => {
+        // Set the conversation first
         setSelectedConversation(contact);
-        
-        const message = `Join my video room: ${roomCode}`;
-        
-        await sendMessage({ message });
-        
-        setSelectedConversation(null);
 
-        if (contact) {
-            toast.success(`Room code sent to ${contact.fullName}!`);
-        }
-        closeShareModal();
+        // Wait for a small delay to ensure the state is updated
+        // This is a common workaround for this type of race condition
+        setTimeout(async () => {
+            const message = `Join my video room: ${roomCode}`;
+            await sendMessage({ message });
+            
+            // Clear the selected conversation after the message is sent
+            setSelectedConversation(null);
+
+            if (contact) {
+                toast.success(`Room code sent to ${contact.fullName}!`);
+            }
+            closeShareModal();
+        }, 10);
     };
 
     return (
@@ -157,7 +157,6 @@ const RoomCreation = () => {
                 </div>
             )}
             
-            {/* Share Modal */}
             {showShareModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="bg-gray-900 rounded-lg shadow-lg w-full max-w-md p-6 relative">
