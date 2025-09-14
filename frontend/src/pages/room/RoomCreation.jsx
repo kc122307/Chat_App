@@ -5,9 +5,11 @@ import { FaVideo, FaCopy, FaShare, FaSync, FaTimes } from 'react-icons/fa';
 import { useSocketContext } from '../../context/SocketContext';
 import { useAuthContext } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import useConversation from '../../zustand/useConversation'; // Import the Zustand store
 
 const RoomCreation = () => {
-    const [roomCode, setRoomCode] = useState('');
+    // Get roomCode and setRoomCode from the global store
+    const { roomCode, setRoomCode } = useConversation();
     const [isCreating, setIsCreating] = useState(false);
     const { socket } = useSocketContext();
     const { authUser } = useAuthContext();
@@ -36,7 +38,7 @@ const RoomCreation = () => {
             
             // Listen for room creation confirmation
             socket.once('video-room-created', (data) => {
-                setRoomCode(data.id);
+                setRoomCode(data.id); // Use the global state setter
                 setIsCreating(false);
                 toast.success('Room created successfully!');
             });
@@ -62,9 +64,9 @@ const RoomCreation = () => {
         navigate(`/rooms/${roomCode}`);
     };
     
-    // New function to reset the state
+    // New function to reset the global state
     const handleRefresh = () => {
-        setRoomCode('');
+        setRoomCode(null);
         setIsCreating(false);
     };
 
