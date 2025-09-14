@@ -101,9 +101,9 @@ const VideoRoom = () => {
     }, [socket, roomId, authUser, endCall]);
 
     return (
-        <div className="flex flex-col h-screen bg-gray-900 text-white">
+        <div className="relative flex flex-col h-screen bg-gray-900 text-white">
             {/* Header */}
-            <div className="bg-gray-800 p-4 flex justify-between items-center">
+            <div className="bg-gray-800 p-4 flex justify-between items-center z-10">
                 <div>
                     <h1 className="text-xl font-bold">Video Room</h1>
                     <div className="flex items-center text-sm text-gray-300">
@@ -143,10 +143,50 @@ const VideoRoom = () => {
                 </div>
             )}
             
-            {/* Video Grid */}
+            {/* Main Video Grid for Remote Streams */}
             <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-auto">
-                {/* Local Video */}
-                <div className="relative bg-gray-800 rounded-lg overflow-hidden">
+                {/* If there are remote streams, show them */}
+                {Object.entries(remoteStreams).length > 0 ? (
+                    Object.entries(remoteStreams).map(([userId, stream]) => (
+                        <div key={userId} className="relative bg-gray-800 rounded-lg overflow-hidden">
+                            <video
+                                autoPlay
+                                playsInline
+                                className="w-full h-full object-cover"
+                                ref={video => {
+                                    if (video) video.srcObject = stream;
+                                }}
+                            />
+                        </div>
+                    ))
+                ) : (
+                    // Otherwise, show the local stream in the main view as a placeholder
+                    <div className="relative bg-gray-800 rounded-lg overflow-hidden w-full h-full">
+                        <video
+                            ref={localVideoRef}
+                            autoPlay
+                            muted
+                            playsInline
+                            className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
+                        />
+                        {!isVideoEnabled && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
+                                <div className="text-center">
+                                    <FaVideoSlash className="text-4xl mx-auto mb-2" />
+                                    <p>Camera Off</p>
+                                </div>
+                            </div>
+                        )}
+                        <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded">
+                            You (Muted for yourself)
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Small local video preview on the bottom right */}
+            {Object.entries(remoteStreams).length > 0 && (
+                <div className="absolute bottom-20 right-4 w-40 h-32 bg-gray-800 rounded-lg overflow-hidden shadow-lg border-2 border-white z-20">
                     <video
                         ref={localVideoRef}
                         autoPlay
@@ -154,38 +194,16 @@ const VideoRoom = () => {
                         playsInline
                         className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
                     />
-                    
                     {!isVideoEnabled && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
-                            <div className="text-center">
-                                <FaVideoSlash className="text-4xl mx-auto mb-2" />
-                                <p>Camera Off</p>
-                            </div>
+                            <FaVideoSlash className="text-2xl text-white" />
                         </div>
                     )}
-                    
-                    <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded">
-                        You (Muted for yourself)
-                    </div>
                 </div>
-                
-                {/* Remote Videos */}
-                {Object.entries(remoteStreams).map(([userId, stream]) => (
-                    <div key={userId} className="relative bg-gray-800 rounded-lg overflow-hidden">
-                        <video
-                            autoPlay
-                            playsInline
-                            className="w-full h-full object-cover"
-                            ref={video => {
-                                if (video) video.srcObject = stream;
-                            }}
-                        />
-                    </div>
-                ))}
-            </div>
+            )}
             
             {/* Controls */}
-            <div className="bg-gray-800 p-4 flex justify-center">
+            <div className="bg-gray-800 p-4 flex justify-center z-10">
                 <button 
                     onClick={toggleAudio}
                     className={`mx-2 p-4 rounded-full ${isAudioEnabled ? 'bg-gray-600 hover:bg-gray-500' : 'bg-red-500 hover:bg-red-600'}`}
