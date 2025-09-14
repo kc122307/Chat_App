@@ -10,8 +10,9 @@ const Groups = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedGroup, setSelectedGroup] = useState(null);
 
-    const handleOpenModal = () => setIsModalModal(true);
-    const handleCloseModal = () => setIsModalModal(false);
+    // FIX: Corrected the function names from setIsModalModal to setIsModalOpen
+    const handleOpenModal = () => setIsModalOpen(true);
+    const handleCloseModal = () => setIsModalOpen(false);
 
     return (
         <div className='flex flex-col md:flex-row h-full w-full'>
