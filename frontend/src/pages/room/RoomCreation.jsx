@@ -1,4 +1,3 @@
-// src/pages/room/RoomCreation.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaVideo, FaCopy, FaSync } from 'react-icons/fa';
@@ -8,7 +7,6 @@ import toast from 'react-hot-toast';
 import useConversation from '../../zustand/useConversation';
 
 const RoomCreation = () => {
-    // Get roomCode and setRoomCode from the global store
     const { roomCode, setRoomCode } = useConversation();
     const [isCreating, setIsCreating] = useState(false);
     const { socket } = useSocketContext();
@@ -16,7 +14,6 @@ const RoomCreation = () => {
     const navigate = useNavigate();
 
     const generateRoomCode = () => {
-        // Generate a random 6-character alphanumeric code
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let result = '';
         for (let i = 0; i < 6; i++) {
@@ -29,22 +26,18 @@ const RoomCreation = () => {
         setIsCreating(true);
         
         if (socket) {
-            // Create room on server
             socket.emit('create-video-room', { 
                 userId: authUser._id,
                 userName: authUser.fullName
             });
             
-            // Listen for room creation confirmation
             socket.once('video-room-created', (data) => {
-                setRoomCode(data.id); // Use the global state setter
+                setRoomCode(data.id);
                 setIsCreating(false);
                 toast.success('Room created successfully!');
-                // Navigate only after confirmation from the server
                 navigate(`/rooms/${data.id}`);
             });
             
-            // Handle errors
             socket.once('room-error', (error) => {
                 setIsCreating(false);
                 toast.error(error.message || 'Failed to create room');
@@ -65,7 +58,6 @@ const RoomCreation = () => {
         navigate(`/rooms/${roomCode}`);
     };
     
-    // Function to reset the global state
     const handleRefresh = () => {
         setRoomCode(null);
         setIsCreating(false);
