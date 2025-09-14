@@ -145,8 +145,9 @@ const VideoRoom = () => {
             
             {/* Main Video Grid for Remote Streams */}
             <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-auto">
-                {/* If there are remote streams, show them */}
+                {/* Conditional rendering for remote vs. local view */}
                 {Object.entries(remoteStreams).length > 0 ? (
+                    // Display remote streams in the main grid
                     Object.entries(remoteStreams).map(([userId, stream]) => (
                         <div key={userId} className="relative bg-gray-800 rounded-lg overflow-hidden">
                             <video
@@ -160,47 +161,28 @@ const VideoRoom = () => {
                         </div>
                     ))
                 ) : (
-                    // Otherwise, show the local stream in the main view as a placeholder
-                    <div className="relative bg-gray-800 rounded-lg overflow-hidden w-full h-full">
-                        <video
-                            ref={localVideoRef}
-                            autoPlay
-                            muted
-                            playsInline
-                            className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
-                        />
-                        {!isVideoEnabled && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
-                                <div className="text-center">
-                                    <FaVideoSlash className="text-4xl mx-auto mb-2" />
-                                    <p>Camera Off</p>
-                                </div>
-                            </div>
-                        )}
-                        <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded">
-                            You (Muted for yourself)
-                        </div>
+                    // Display a "No one is present" message if no one else is in the room
+                    <div className="flex items-center justify-center col-span-full h-full">
+                        <p className="text-gray-400 text-lg">No one is present now.</p>
                     </div>
                 )}
             </div>
 
-            {/* Small local video preview on the bottom right */}
-            {Object.entries(remoteStreams).length > 0 && (
-                <div className="absolute bottom-20 right-4 w-40 h-32 bg-gray-800 rounded-lg overflow-hidden shadow-lg border-2 border-white z-20">
-                    <video
-                        ref={localVideoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
-                    />
-                    {!isVideoEnabled && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
-                            <FaVideoSlash className="text-2xl text-white" />
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* Small local video preview on the bottom right (always show for consistency) */}
+            <div className="absolute bottom-20 right-4 w-40 h-32 bg-gray-800 rounded-lg overflow-hidden shadow-lg border-2 border-white z-20">
+                <video
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
+                />
+                {!isVideoEnabled && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-700">
+                        <FaVideoSlash className="text-2xl text-white" />
+                    </div>
+                )}
+            </div>
             
             {/* Controls */}
             <div className="bg-gray-800 p-4 flex justify-center z-10">
