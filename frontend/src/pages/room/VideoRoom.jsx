@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocketContext } from '../../context/SocketContext';
 import { useAuthContext } from '../../context/AuthContext';
-import Peer from 'simple-peer';
 import { FaVideo, FaVideoSlash, FaMicrophone, FaMicrophoneSlash, FaPhoneSlash, FaUsers, FaCopy } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import useCall from '../../hooks/useCall';

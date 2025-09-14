@@ -5,7 +5,6 @@ import { useSocketContext } from '../context/SocketContext';
 import useConversation from '../zustand/useConversation';
 import toast from 'react-hot-toast';
 
-// Check if the browser supports WebRTC
 const checkWebRTCSupport = () => {
     return !!(navigator.mediaDevices && 
               navigator.mediaDevices.getUserMedia && 
