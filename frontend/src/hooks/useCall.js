@@ -5,7 +5,6 @@ import { useSocketContext } from '../context/SocketContext';
 import useConversation from '../zustand/useConversation';
 import toast from 'react-hot-toast';
 
-// Check if the browser supports WebRTC
 const checkWebRTCSupport = () => {
     return !!(navigator.mediaDevices && 
               navigator.mediaDevices.getUserMedia && 
@@ -17,7 +16,7 @@ const useCall = () => {
     const [localStream, setLocalStream] = useState(null);
     const [remoteStreams, setRemoteStreams] = useState({});
     const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-    const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const [isVideoEnabled, setIsVideoEnabled] = true;
     const [isWebRTCSupported, setIsWebRTCSupported] = useState(true);
     const { socket } = useSocketContext();
     const { selectedConversation, incomingCall, setIncomingCall } = useConversation();
