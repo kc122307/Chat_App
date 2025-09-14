@@ -60,6 +60,7 @@ const VideoRoom = () => {
     }, [localStream]);
 
     const createPeer = useCallback((userId, stream) => {
+        // Correctly initialize Peer without unnecessary properties
         const peer = new Peer({ initiator: true, trickle: false, stream });
 
         peer.on('signal', signal => {
@@ -92,6 +93,7 @@ const VideoRoom = () => {
     }, [socket, authUser._id]);
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
+        // Correctly initialize Peer without unnecessary properties
         const peer = new Peer({ initiator: false, trickle: false, stream });
 
         peer.on('signal', signal => {
@@ -142,7 +144,6 @@ const VideoRoom = () => {
                 } else {
                     toast.error('Failed to access media devices.');
                 }
-                // Don't call endCall() here to avoid navigation, let the user handle it
             }
         };
 
