@@ -210,7 +210,14 @@ const VideoRoom = () => {
 
         return () => {
             // Cleanup on unmount
-            endCall();
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            Object.values(peersRef.current).forEach(peer => peer.destroy());
+            peersRef.current = {};
+            setRemoteStreams({});
+            socket?.emit('leave-room', { roomId, userId: authUser._id });
+            
             socket.off('room-info');
             socket.off('user-joined');
             socket.off('user-left');
@@ -218,9 +225,8 @@ const VideoRoom = () => {
             socket.off('returning-signal');
             socket.off('room-closed');
         };
-    }, [socket, roomId, authUser, endCall, isWebRTCSupported, localStream]);
+    }, [socket, roomId, authUser, localStream]);
 
-    // UI remains largely the same
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">
             {/* Header */}
