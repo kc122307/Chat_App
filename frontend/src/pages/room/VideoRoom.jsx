@@ -5,6 +5,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import Peer from 'simple-peer';
 import { FaVideo, FaVideoSlash, FaMicrophone, FaMicrophoneSlash, FaPhoneSlash, FaUsers, FaCopy } from 'react-icons/fa';
 import toast from 'react-hot-toast';
+import useCall from '../../hooks/useCall';
 
 const VideoRoom = () => {
     const { roomId } = useParams();
@@ -12,40 +13,32 @@ const VideoRoom = () => {
     const { authUser } = useAuthContext();
     const navigate = useNavigate();
     
-    const [localStream, setLocalStream] = useState(null);
-    const [peers, setPeers] = useState({});
+    // Use the useCall hook to manage all the video call logic
+    const { 
+        localStream,
+        remoteStreams,
+        endCall,
+        toggleAudio,
+        toggleVideo,
+        isAudioEnabled,
+        isVideoEnabled,
+        isWebRTCSupported
+    } = useCall();
+    
+    // Local state for the room information
     const [participants, setParticipants] = useState([]);
-    const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-    const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [roomInfo, setRoomInfo] = useState(null);
-    const [isWebRTCSupported, setIsWebRTCSupported] = useState(true);
-    
     const localVideoRef = useRef();
-    const peersRef = useRef({});
-    
-    // Check WebRTC support
-    useEffect(() => {
-        const isSupported = !!(navigator.mediaDevices && 
-            navigator.mediaDevices.getUserMedia && 
-            window.RTCPeerConnection && 
-            window.RTCSessionDescription);
-        
-        setIsWebRTCSupported(isSupported);
-        
-        if (!isSupported) {
-            toast.error("Your browser doesn't fully support WebRTC. Video chat may not work properly.");
-        }
-    }, []);
-    
-    
-    // Initialize media stream and join room
+
+    // The logic to handle socket events and join the room is now here
     useEffect(() => {
         if (!socket || !roomId || !authUser) return;
-        
-        const setupMediaAndJoinRoom = async () => {
+
+        // Use a function to set up media and join the room
+        const setupAndJoinRoom = async () => {
             try {
+                // Get local media stream (this is handled by useCall, but we need it here to join the room)
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                setLocalStream(stream);
                 
                 if (localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
@@ -60,190 +53,54 @@ const VideoRoom = () => {
                 
             } catch (error) {
                 console.error('Error accessing media devices:', error);
-                toast.error('Failed to access camera or microphone');
-            }
-        };
-        
-        setupMediaAndJoinRoom();
-        
-        // Socket event listeners
-        socket.on('room-info', handleRoomInfo);
-        socket.on('user-joined', handleUserJoined);
-        socket.on('user-left', handleUserLeft);
-        socket.on('receive-signal', handleReceiveSignal);
-        socket.on('room-closed', handleRoomClosed);
-        
-        return () => {
-            // Clean up
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            
-            socket.off('room-info', handleRoomInfo);
-            socket.off('user-joined', handleUserJoined);
-            socket.off('user-left', handleUserLeft);
-            socket.off('receive-signal', handleReceiveSignal);
-            socket.off('room-closed', handleRoomClosed);
-            
-            socket.emit('leave-room', { roomId, userId: authUser._id });
-            
-            // Close all peer connections
-            Object.values(peersRef.current).forEach(peer => {
-                if (peer.peer) {
-                    peer.peer.destroy();
+                // More specific error message for the user
+                if (error.name === 'NotAllowedError') {
+                    toast.error('Permission to access camera and microphone was denied. Please check your browser settings.');
+                } else if (error.name === 'NotFoundError') {
+                    toast.error('No camera or microphone found on your device.');
+                } else {
+                    toast.error('Failed to access camera or microphone.');
                 }
-            });
+            }
         };
-    }, [socket, roomId, authUser]);
-    
-    // Update local video ref when stream changes
-    useEffect(() => {
-        if (localStream && localVideoRef.current) {
-            localVideoRef.current.srcObject = localStream;
-        }
-    }, [localStream]);
-    
-    // Handle room info received from server
-    const handleRoomInfo = (info) => {
-        setRoomInfo(info);
-        setParticipants(info.participants);
-        
-        // Connect to existing participants
-        info.participants.forEach(participant => {
-            if (participant.userId !== authUser._id) {
-                createPeer(participant.userId, participant.userName, true);
+
+        setupAndJoinRoom();
+
+        // Socket event listeners
+        socket.on('room-info', (info) => {
+            setRoomInfo(info);
+            setParticipants(info.participants);
+        });
+
+        socket.on('user-joined', ({ userId, userName }) => {
+            if (userId !== authUser._id) {
+                toast.success(`${userName} joined the room`);
+                setParticipants(prev => [...prev, { userId, userName }]);
             }
         });
-    };
-    
-    // Handle new user joining the room
-    const handleUserJoined = ({ userId, userName }) => {
-        if (userId !== authUser._id) {
-            toast.success(`${userName} joined the room`);
-            createPeer(userId, userName, false);
-            
-            // Update participants list
-            setParticipants(prev => [...prev, { userId, userName }]);
-        }
-    };
-    
-    // Handle user leaving the room
-    const handleUserLeft = ({ userId, userName }) => {
-        toast.error(`${userName} left the room`);
-        
-        // Remove peer connection
-        if (peersRef.current[userId]) {
-            if (peersRef.current[userId].peer) {
-                peersRef.current[userId].peer.destroy();
-            }
-            delete peersRef.current[userId];
-        }
-        
-        // Update peers state
-        setPeers(prev => {
-            const newPeers = { ...prev };
-            delete newPeers[userId];
-            return newPeers;
+
+        socket.on('user-left', ({ userId, userName }) => {
+            toast.error(`${userName} left the room`);
+            setParticipants(prev => prev.filter(p => p.userId !== userId));
         });
-        
-        // Update participants list
-        setParticipants(prev => prev.filter(p => p.userId !== userId));
-    };
-    
-    // Handle receiving signal from another peer
-    const handleReceiveSignal = ({ from, signal }) => {
-        if (peersRef.current[from]) {
-            peersRef.current[from].peer.signal(signal);
-        }
-    };
-    
-    // Handle room being closed by the host
-    const handleRoomClosed = () => {
-        toast.error('The room has been closed by the host');
-        leaveRoom();
-    };
-    
-    // Create a new peer connection
-    const createPeer = (userId, userName, initiator) => {
-        if (!localStream) return;
-        
-        try {
-            const peer = new Peer({
-                initiator,
-                trickle: false,
-                stream: localStream,
-                objectMode: true,
-                wrtc: undefined
-            });
-            
-            peer.on('signal', signal => {
-                socket.emit('send-signal', {
-                    to: userId,
-                    from: authUser._id,
-                    signal
-                });
-            });
-            
-            peer.on('stream', stream => {
-                setPeers(prev => ({
-                    ...prev,
-                    [userId]: { stream, userName }
-                }));
-            });
-            
-            peer.on('error', err => {
-                console.error('Peer connection error:', err);
-                toast.error(`Connection error with ${userName}`);
-            });
-            
-            peersRef.current[userId] = { peer, userName };
-            
-        } catch (error) {
-            console.error('Error creating peer:', error);
-            toast.error(`Failed to connect with ${userName}`);
-        }
-    };
-    
-    // Toggle audio
-    const toggleAudio = () => {
-        if (localStream) {
-            const audioTracks = localStream.getAudioTracks();
-            audioTracks.forEach(track => {
-                track.enabled = !track.enabled;
-            });
-            setIsAudioEnabled(audioTracks[0]?.enabled || false);
-        }
-    };
-    
-    // Toggle video
-    const toggleVideo = () => {
-        if (localStream) {
-            const videoTracks = localStream.getVideoTracks();
-            videoTracks.forEach(track => {
-                track.enabled = !track.enabled;
-            });
-            setIsVideoEnabled(videoTracks[0]?.enabled || false);
-        }
-    };
-    
-    // Leave the room
-    const leaveRoom = () => {
-        // Stop all tracks
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-        }
-        
-        // Navigate back
-        navigate('/rooms');
-    };
-    
-    // Copy room code to clipboard
-    const copyRoomCode = () => {
-        navigator.clipboard.writeText(roomId)
-            .then(() => toast.success('Room code copied to clipboard!'))
-            .catch(() => toast.error('Failed to copy room code'));
-    };
-    
+
+        socket.on('room-closed', () => {
+            toast.error('The room has been closed by the host');
+            endCall();
+        });
+
+        return () => {
+            if (localVideoRef.current && localVideoRef.current.srcObject) {
+                localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+            }
+            socket.off('room-info');
+            socket.off('user-joined');
+            socket.off('user-left');
+            socket.off('room-closed');
+            socket.emit('leave-room', { roomId, userId: authUser._id });
+        };
+    }, [socket, roomId, authUser, endCall]);
+
     return (
         <div className="flex flex-col h-screen bg-gray-900 text-white">
             {/* Header */}
@@ -253,7 +110,7 @@ const VideoRoom = () => {
                     <div className="flex items-center text-sm text-gray-300">
                         <span>Room Code: {roomId}</span>
                         <button 
-                            onClick={copyRoomCode}
+                            onClick={() => navigator.clipboard.writeText(roomId).then(() => toast.success('Room code copied!'))}
                             className="ml-2 text-gray-400 hover:text-white"
                         >
                             <FaCopy />
@@ -271,7 +128,7 @@ const VideoRoom = () => {
                     </button>
                     
                     <button 
-                        onClick={leaveRoom}
+                        onClick={endCall}
                         className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg flex items-center"
                     >
                         <FaPhoneSlash className="mr-2" />
@@ -314,7 +171,7 @@ const VideoRoom = () => {
                 </div>
                 
                 {/* Remote Videos */}
-                {Object.entries(peers).map(([userId, { stream, userName }]) => (
+                {Object.entries(remoteStreams).map(([userId, stream]) => (
                     <div key={userId} className="relative bg-gray-800 rounded-lg overflow-hidden">
                         <video
                             autoPlay
@@ -324,9 +181,6 @@ const VideoRoom = () => {
                                 if (video) video.srcObject = stream;
                             }}
                         />
-                        <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded">
-                            {userName}
-                        </div>
                     </div>
                 ))}
             </div>
@@ -348,7 +202,7 @@ const VideoRoom = () => {
                 </button>
                 
                 <button 
-                    onClick={leaveRoom}
+                    onClick={endCall}
                     className="mx-2 p-4 rounded-full bg-red-500 hover:bg-red-600"
                 >
                     <FaPhoneSlash />

@@ -1,11 +1,11 @@
 // src/pages/room/RoomCreation.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaVideo, FaCopy, FaShare, FaSync, FaTimes } from 'react-icons/fa';
+import { FaVideo, FaCopy, FaSync } from 'react-icons/fa';
 import { useSocketContext } from '../../context/SocketContext';
 import { useAuthContext } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
-import useConversation from '../../zustand/useConversation'; // Import the Zustand store
+import useConversation from '../../zustand/useConversation';
 
 const RoomCreation = () => {
     // Get roomCode and setRoomCode from the global store
@@ -64,7 +64,7 @@ const RoomCreation = () => {
         navigate(`/rooms/${roomCode}`);
     };
     
-    // New function to reset the global state
+    // Function to reset the global state
     const handleRefresh = () => {
         setRoomCode(null);
         setIsCreating(false);
