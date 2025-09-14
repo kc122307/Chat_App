@@ -19,16 +19,17 @@ const VideoRoom = () => {
     const [isAudioEnabled, setIsAudioEnabled] = useState(true);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     
-    // Store peer connections for each user
+    // Store peer connections and local stream reference
     const peersRef = useRef({});
     const localVideoRef = useRef();
+    const localStreamRef = useRef(null);
 
     // Check for WebRTC support
     const isWebRTCSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.RTCPeerConnection);
 
     const endCall = useCallback(() => {
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => track.stop());
             setLocalStream(null);
         }
         Object.values(peersRef.current).forEach(peer => peer.destroy());
@@ -37,29 +38,29 @@ const VideoRoom = () => {
         socket?.emit('leave-room', { roomId, userId: authUser._id });
         navigate('/');
         toast.error('You left the room.');
-    }, [localStream, navigate, socket, roomId, authUser]);
+    }, [navigate, socket, roomId, authUser]);
 
     const toggleAudio = useCallback(() => {
-        if (localStream) {
-            const audioTrack = localStream.getAudioTracks()[0];
+        if (localStreamRef.current) {
+            const audioTrack = localStreamRef.current.getAudioTracks()[0];
             if (audioTrack) {
                 audioTrack.enabled = !audioTrack.enabled;
                 setIsAudioEnabled(audioTrack.enabled);
             }
         }
-    }, [localStream]);
+    }, []);
 
     const toggleVideo = useCallback(() => {
-        if (localStream) {
-            const videoTrack = localStream.getVideoTracks()[0];
+        if (localStreamRef.current) {
+            const videoTrack = localStreamRef.current.getVideoTracks()[0];
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 setIsVideoEnabled(videoTrack.enabled);
             }
         }
-    }, [localStream]);
+    }, []);
 
-    // This useEffect is now solely responsible for getting the local media stream
+    // Effect to get local media stream on component mount
     useEffect(() => {
         if (!isWebRTCSupported || !authUser) {
             toast.error("Your browser doesn't support WebRTC or you are not authenticated.");
@@ -70,36 +71,23 @@ const VideoRoom = () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 setLocalStream(stream);
+                localStreamRef.current = stream; // Update the ref
                 if (localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
                 }
             } catch (error) {
                 console.error('Error accessing media devices:', error);
-                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-                    toast.error('Permission to access camera and microphone was denied.');
-                } else if (error.name === 'NotFoundError') {
-                    toast.error('No camera or microphone found.');
-                } else {
-                    toast.error('Failed to access media devices.');
-                }
+                toast.error('Failed to access media devices.');
             }
         };
-
         getLocalStream();
     }, [isWebRTCSupported, authUser]);
 
-    // This useEffect handles all socket events and peer connection logic
+    // Effect to handle all socket events and peer connections
     useEffect(() => {
-        if (!socket || !roomId || !localStream) {
+        if (!socket || !roomId) {
             return;
         }
-
-        // Join the room after the local stream is available
-        socket.emit('join-room', { 
-            roomId: roomId,
-            userId: authUser._id,
-            userName: authUser.fullName
-        });
 
         const createPeer = (userId, stream) => {
             const peer = new Peer({ initiator: true, trickle: false, stream });
@@ -149,26 +137,43 @@ const VideoRoom = () => {
             peersRef.current[callerId] = peer;
         };
 
-        socket.on('room-info', (info) => {
+        const handleRoomInfo = (info) => {
             setRoomInfo(info);
             setParticipants(info.participants);
-            // Initiate peer connections with all existing participants
-            info.participants.forEach(p => {
-                if (p.userId !== authUser._id) {
-                    createPeer(p.userId, localStream);
-                }
-            });
-        });
+            // Wait for localStream to be available before creating peers
+            if (localStreamRef.current) {
+                info.participants.forEach(p => {
+                    if (p.userId !== authUser._id) {
+                        createPeer(p.userId, localStreamRef.current);
+                    }
+                });
+            } else {
+                console.error('Local stream not available yet.');
+            }
+        };
 
-        socket.on('user-joined', ({ userId, userName }) => {
+        const handleUserJoined = ({ userId, userName }) => {
             if (userId !== authUser._id) {
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
-                // Create a new peer connection for the new user
-                createPeer(userId, localStream);
+                if (localStreamRef.current) {
+                    createPeer(userId, localStreamRef.current);
+                } else {
+                    console.error('Local stream not available to create peer for new user.');
+                }
             }
+        };
+
+        // Join the room after the local stream is available
+        socket.emit('join-room', { 
+            roomId: roomId,
+            userId: authUser._id,
+            userName: authUser.fullName
         });
 
+        // Set up socket event listeners
+        socket.on('room-info', handleRoomInfo);
+        socket.on('user-joined', handleUserJoined);
         socket.on('user-left', ({ userId, userName }) => {
             toast.error(`${userName} left the room`);
             setParticipants(prev => prev.filter(p => p.userId !== userId));
@@ -182,40 +187,39 @@ const VideoRoom = () => {
                 });
             }
         });
-
         socket.on('receiving-signal', ({ signal, callerId }) => {
-            addPeer(signal, callerId, localStream);
+            if (localStreamRef.current) {
+                addPeer(signal, callerId, localStreamRef.current);
+            }
         });
-
         socket.on('returning-signal', ({ signal, callerId }) => {
             const peer = peersRef.current[callerId];
             if (peer) {
                 peer.signal(signal);
             }
         });
-
         socket.on('room-closed', () => {
             toast.error('The room has been closed by the host');
             endCall();
         });
 
         return () => {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => track.stop());
             }
             Object.values(peersRef.current).forEach(peer => peer.destroy());
             peersRef.current = {};
             setRemoteStreams({});
             socket?.emit('leave-room', { roomId, userId: authUser._id });
             
-            socket.off('room-info');
-            socket.off('user-joined');
+            socket.off('room-info', handleRoomInfo);
+            socket.off('user-joined', handleUserJoined);
             socket.off('user-left');
             socket.off('receiving-signal');
             socket.off('returning-signal');
             socket.off('room-closed');
         };
-    }, [socket, roomId, authUser, localStream, endCall]);
+    }, [socket, roomId, authUser, endCall]);
 
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">
@@ -338,8 +342,8 @@ const VideoRoom = () => {
                                 </div>
                                 <span>
                                     {participant.userName}
-                                    {participant.userId === authUser._id && ' (You)'}
-                                    {roomInfo?.creatorId === participant.userId && ' (Host)'}
+                                    {/* Fix: Display 'Host' or 'You', but not both */}
+                                    {roomInfo?.creatorId === participant.userId ? ' (Host)' : participant.userId === authUser._id ? ' (You)' : ''}
                                 </span>
                             </li>
                         ))}

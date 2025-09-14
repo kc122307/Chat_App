@@ -27,7 +27,6 @@ const RoomCreation = () => {
 
     const handleCreateRoom = () => {
         setIsCreating(true);
-        const newRoomCode = generateRoomCode();
         
         if (socket) {
             // Create room on server
@@ -41,6 +40,8 @@ const RoomCreation = () => {
                 setRoomCode(data.id); // Use the global state setter
                 setIsCreating(false);
                 toast.success('Room created successfully!');
+                // Navigate only after confirmation from the server
+                navigate(`/rooms/${data.id}`);
             });
             
             // Handle errors
