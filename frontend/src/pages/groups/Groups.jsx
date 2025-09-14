@@ -15,7 +15,7 @@ const Groups = () => {
 
     return (
         <div className='flex flex-col md:flex-row h-full w-full'>
-            <div className='border-r border-slate-500 p-4 flex flex-col w-full md:w-64 h-full'>
+            <div className='border-r border-slate-500 p-4 flex flex-col w-64 h-full'>
                 <SearchInput />
                 <div className='divider px-3'></div>
                 <GroupList onSelectGroup={setSelectedGroup} />

@@ -30,7 +30,6 @@ const useCall = () => {
         toast.error("Call rejected.");
     }, [incomingCall, setIncomingCall, socket]);
 
-    // Use useCallback to stabilize the functions that are dependencies
     const toggleAudio = useCallback(() => {
         if (localStream) {
             localStream.getAudioTracks().forEach(track => {
@@ -61,21 +60,18 @@ const useCall = () => {
 
     const acceptCall = useCallback(async () => {
         try {
-            // Check if the browser supports WebRTC
             if (!isWebRTCSupported) {
                 toast.error("Your browser doesn't support WebRTC for calls.");
                 setIncomingCall(null);
                 return;
             }
             
-            // Check if the browser supports getUserMedia
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 toast.error("Your browser doesn't support calls.");
                 setIncomingCall(null);
                 return;
             }
 
-            // Check if it's an audio-only call
             const isAudioOnly = incomingCall.callType === 'audio';
             
             toast.loading(`Accessing ${isAudioOnly ? 'microphone' : 'camera and microphone'}...`);
@@ -85,13 +81,10 @@ const useCall = () => {
             });
             toast.dismiss();
             setLocalStream(stream);
-            
-            // Set video enabled state based on call type
             setIsVideoEnabled(!isAudioOnly);
 
             try {
-                // Create peer with explicit wrtc: undefined to force browser WebRTC API usage
-            const peer = new Peer({ initiator: false, trickle: false, stream, objectMode: true, wrtc: undefined });
+                const peer = new Peer({ initiator: false, trickle: false, stream, objectMode: true, wrtc: undefined });
                 peer.on('signal', (signal) => {
                     socket.emit('call-accepted', { to: incomingCall.from, signal });
                 });
@@ -120,7 +113,6 @@ const useCall = () => {
             toast.dismiss();
             console.error("Failed to get local stream", err);
             
-            // Provide more specific error messages based on the error type
             if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
                 toast.error("Permission denied. Please allow access to camera/microphone in your browser settings.");
             } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
@@ -134,7 +126,6 @@ const useCall = () => {
         }
     }, [incomingCall, navigate, setIncomingCall, socket, isWebRTCSupported, endCall]);
 
-    // Check WebRTC support when component mounts
     useEffect(() => {
         const supported = checkWebRTCSupport();
         setIsWebRTCSupported(supported);
@@ -172,7 +163,6 @@ const useCall = () => {
             endCall();
         });
 
-        // Add this cleanup to prevent memory leaks and duplicate listeners
         return () => {
             socket.off('call-received');
             socket.off('call-accepted');
@@ -184,13 +174,11 @@ const useCall = () => {
 
     const startVideoCall = async () => {
     try {
-        // Check if the browser supports WebRTC
         if (!isWebRTCSupported) {
             toast.error("Your browser doesn't support WebRTC for video calls.");
             return;
         }
         
-        // Check if the browser supports getUserMedia
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             toast.error("Your browser doesn't support video calls.");
             return;
@@ -202,7 +190,6 @@ const useCall = () => {
         setLocalStream(stream);
 
         try {
-            // Create peer with explicit wrtc: undefined to force browser WebRTC API usage
             const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true, wrtc: undefined });
 
             peer.on('signal', (signal) => {
@@ -237,7 +224,6 @@ const useCall = () => {
         toast.dismiss();
         console.error("Failed to get local stream", err);
         
-        // Provide more specific error messages based on the error type
         if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
             toast.error("Camera or microphone permission denied. Please allow access in your browser settings.");
         } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
@@ -252,13 +238,11 @@ const useCall = () => {
 
 const startAudioCall = async () => {
     try {
-        // Check if the browser supports WebRTC
         if (!isWebRTCSupported) {
             toast.error("Your browser doesn't support WebRTC for audio calls.");
             return;
         }
         
-        // Check if the browser supports getUserMedia
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             toast.error("Your browser doesn't support audio calls.");
             return;
@@ -270,7 +254,6 @@ const startAudioCall = async () => {
         setLocalStream(stream);
 
         try {
-            // Create peer with explicit wrtc: undefined to force browser WebRTC API usage
             const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true, wrtc: undefined });
 
             peer.on('signal', (signal) => {
@@ -305,7 +288,6 @@ const startAudioCall = async () => {
         toast.dismiss();
         console.error("Failed to get local stream", err);
         
-        // Provide more specific error messages based on the error type
         if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
             toast.error("Microphone permission denied. Please allow access in your browser settings.");
         } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
@@ -320,7 +302,6 @@ const startAudioCall = async () => {
 
     const startGroupCall = async () => {
         try {
-            // Check if the browser supports getUserMedia
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 toast.error("Your browser doesn't support video calls.");
                 return;
@@ -331,7 +312,6 @@ const startAudioCall = async () => {
             toast.dismiss();
             setLocalStream(stream);
 
-            // This is a basic group call implementation
             socket.emit('start-group-call', { groupId: selectedConversation._id, participants: selectedConversation.members });
             
             navigate('/call');
@@ -340,7 +320,6 @@ const startAudioCall = async () => {
             toast.dismiss();
             console.error("Failed to get local stream", err);
             
-            // Provide more specific error messages based on the error type
             if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
                 toast.error("Camera or microphone permission denied. Please allow access in your browser settings.");
             } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {

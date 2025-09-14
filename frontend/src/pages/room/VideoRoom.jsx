@@ -198,7 +198,7 @@ const VideoRoom = () => {
                     onClick={toggleVideo}
                     className={`mx-2 p-4 rounded-full ${isVideoEnabled ? 'bg-gray-600 hover:bg-gray-500' : 'bg-red-500 hover:bg-red-600'}`}
                 >
-                    {isVideoEnabled ? <FaVideo /> : <FaVideoSlash />}
+                    <FaVideo />
                 </button>
                 
                 <button 

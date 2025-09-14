@@ -16,6 +16,9 @@ const Message = ({ message }) => {
 	// Get the backend URL from environment variables
 	const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+	// FIX: Correct the path to the media resource
+	const mediaUrl = `${BACKEND_URL}/uploads/${message.media}`;
+
 	return (
 		<div className={`chat ${chatClassName}`}>
 			<div className='chat-image avatar'>
@@ -30,7 +33,7 @@ const Message = ({ message }) => {
 			{message.mediaType === 'image' && (
 				<div className={`chat-bubble text-white p-1 ${bubbleBgColor} ${shakeClass}`}>
 					<img 
-						src={`${BACKEND_URL}${message.media}`} 
+						src={mediaUrl} 
 						alt="Shared Image" 
 						className="max-w-xs max-h-48 rounded-md" 
 					/>
@@ -38,14 +41,14 @@ const Message = ({ message }) => {
 			)}
 			{message.mediaType === 'audio' && (
 				<div className={`chat-bubble text-white ${bubbleBgColor} ${shakeClass}`}>
-					<audio controls src={`${BACKEND_URL}${message.media}`}>
+					<audio controls src={mediaUrl}>
 						Your browser does not support the audio element.
 					</audio>
 				</div>
 			)}
 			{message.mediaType === 'file' && (
 				<div className={`chat-bubble text-white ${bubbleBgColor} ${shakeClass}`}>
-					<a href={`${BACKEND_URL}${message.media}`} download className="text-sm underline">
+					<a href={mediaUrl} download className="text-sm underline">
 						Download File: {message.message}
 					</a>
 				</div>
