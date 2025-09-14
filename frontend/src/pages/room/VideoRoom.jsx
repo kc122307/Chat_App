@@ -59,69 +59,7 @@ const VideoRoom = () => {
         }
     }, [localStream]);
 
-    const createPeer = useCallback((userId, stream) => {
-        // Correctly initialize Peer without unnecessary properties
-        const peer = new Peer({ initiator: true, trickle: false, stream });
-
-        peer.on('signal', signal => {
-            socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
-        });
-
-        peer.on('stream', remoteStream => {
-            setRemoteStreams(prevStreams => ({
-                ...prevStreams,
-                [userId]: remoteStream
-            }));
-        });
-
-        peer.on('close', () => {
-            peer.destroy();
-            delete peersRef.current[userId];
-            setRemoteStreams(prevStreams => {
-                const newStreams = { ...prevStreams };
-                delete newStreams[userId];
-                return newStreams;
-            });
-        });
-
-        peer.on('error', err => {
-            console.error('Peer error:', err);
-            // Optionally remove peer on error
-        });
-        
-        peersRef.current[userId] = peer;
-    }, [socket, authUser._id]);
-
-    const addPeer = useCallback((incomingSignal, callerId, stream) => {
-        // Correctly initialize Peer without unnecessary properties
-        const peer = new Peer({ initiator: false, trickle: false, stream });
-
-        peer.on('signal', signal => {
-            socket.emit('returning-signal', { signal, callerId });
-        });
-
-        peer.on('stream', remoteStream => {
-            setRemoteStreams(prevStreams => ({
-                ...prevStreams,
-                [callerId]: remoteStream
-            }));
-        });
-        
-        peer.on('close', () => {
-            peer.destroy();
-            delete peersRef.current[callerId];
-            setRemoteStreams(prevStreams => {
-                const newStreams = { ...prevStreams };
-                delete newStreams[callerId];
-                return newStreams;
-            });
-        });
-
-        peer.signal(incomingSignal);
-        peersRef.current[callerId] = peer;
-    }, [socket]);
-
-    // Effect to get local media stream
+    // This useEffect is now solely responsible for getting the local media stream
     useEffect(() => {
         if (!isWebRTCSupported || !authUser) {
             toast.error("Your browser doesn't support WebRTC or you are not authenticated.");
@@ -150,7 +88,7 @@ const VideoRoom = () => {
         getLocalStream();
     }, [isWebRTCSupported, authUser]);
 
-    // Effect to handle socket events and peer connections
+    // This useEffect handles all socket events and peer connection logic
     useEffect(() => {
         if (!socket || !roomId || !localStream) {
             return;
@@ -163,12 +101,58 @@ const VideoRoom = () => {
             userName: authUser.fullName
         });
 
-        // Socket event listeners
+        const createPeer = (userId, stream) => {
+            const peer = new Peer({ initiator: true, trickle: false, stream });
+            peer.on('signal', signal => {
+                socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
+            });
+            peer.on('stream', remoteStream => {
+                setRemoteStreams(prevStreams => ({
+                    ...prevStreams,
+                    [userId]: remoteStream
+                }));
+            });
+            peer.on('close', () => {
+                peer.destroy();
+                delete peersRef.current[userId];
+                setRemoteStreams(prevStreams => {
+                    const newStreams = { ...prevStreams };
+                    delete newStreams[userId];
+                    return newStreams;
+                });
+            });
+            peer.on('error', err => console.error('Peer error:', err));
+            peersRef.current[userId] = peer;
+        };
+
+        const addPeer = (incomingSignal, callerId, stream) => {
+            const peer = new Peer({ initiator: false, trickle: false, stream });
+            peer.on('signal', signal => {
+                socket.emit('returning-signal', { signal, callerId });
+            });
+            peer.on('stream', remoteStream => {
+                setRemoteStreams(prevStreams => ({
+                    ...prevStreams,
+                    [callerId]: remoteStream
+                }));
+            });
+            peer.on('close', () => {
+                peer.destroy();
+                delete peersRef.current[callerId];
+                setRemoteStreams(prevStreams => {
+                    const newStreams = { ...prevStreams };
+                    delete newStreams[callerId];
+                    return newStreams;
+                });
+            });
+            peer.signal(incomingSignal);
+            peersRef.current[callerId] = peer;
+        };
+
         socket.on('room-info', (info) => {
             setRoomInfo(info);
             setParticipants(info.participants);
-            
-            // For each existing user in the room, create a new peer connection
+            // Initiate peer connections with all existing participants
             info.participants.forEach(p => {
                 if (p.userId !== authUser._id) {
                     createPeer(p.userId, localStream);
@@ -180,6 +164,7 @@ const VideoRoom = () => {
             if (userId !== authUser._id) {
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
+                // Create a new peer connection for the new user
                 createPeer(userId, localStream);
             }
         });
@@ -187,7 +172,6 @@ const VideoRoom = () => {
         socket.on('user-left', ({ userId, userName }) => {
             toast.error(`${userName} left the room`);
             setParticipants(prev => prev.filter(p => p.userId !== userId));
-            // Close the peer connection for the user who left
             if (peersRef.current[userId]) {
                 peersRef.current[userId].destroy();
                 delete peersRef.current[userId];
@@ -216,7 +200,6 @@ const VideoRoom = () => {
         });
 
         return () => {
-            // Cleanup on unmount, but don't navigate
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
             }
@@ -232,7 +215,7 @@ const VideoRoom = () => {
             socket.off('returning-signal');
             socket.off('room-closed');
         };
-    }, [socket, roomId, authUser, localStream, createPeer, addPeer, endCall]);
+    }, [socket, roomId, authUser, localStream, endCall]);
 
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">
