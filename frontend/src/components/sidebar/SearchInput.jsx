@@ -32,7 +32,7 @@ const SearchInput = () => {
 			<input
 				type='text'
 				placeholder='Search…'
-				className='input input-bordered rounded-full w-50 md:w-70'
+				className='input input-bordered rounded-full w-40 md:w-80'
 				value={search}
 				onChange={(e) => setSearch(e.target.value)}
 			/>
