@@ -59,7 +59,7 @@ const VideoRoom = () => {
         }
     }, [localStream]);
 
-    const createPeer = (userId, stream) => {
+    const createPeer = useCallback((userId, stream) => {
         const peer = new Peer({ initiator: true, trickle: false, stream });
 
         peer.on('signal', signal => {
@@ -89,9 +89,9 @@ const VideoRoom = () => {
         });
         
         peersRef.current[userId] = peer;
-    };
+    }, [socket, authUser._id]);
 
-    const addPeer = (incomingSignal, callerId, stream) => {
+    const addPeer = useCallback((incomingSignal, callerId, stream) => {
         const peer = new Peer({ initiator: false, trickle: false, stream });
 
         peer.on('signal', signal => {
@@ -117,26 +117,22 @@ const VideoRoom = () => {
 
         peer.signal(incomingSignal);
         peersRef.current[callerId] = peer;
-    };
+    }, [socket]);
 
+    // Effect to get local media stream
     useEffect(() => {
-        if (!socket || !roomId || !authUser || !isWebRTCSupported) return;
+        if (!isWebRTCSupported || !authUser) {
+            toast.error("Your browser doesn't support WebRTC or you are not authenticated.");
+            return;
+        }
 
-        const setupAndJoinRoom = async () => {
+        const getLocalStream = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 setLocalStream(stream);
                 if (localVideoRef.current) {
                     localVideoRef.current.srcObject = stream;
                 }
-                
-                // Signal to the server to join the room
-                socket.emit('join-room', { 
-                    roomId: roomId,
-                    userId: authUser._id,
-                    userName: authUser.fullName
-                });
-                
             } catch (error) {
                 console.error('Error accessing media devices:', error);
                 if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
@@ -146,11 +142,25 @@ const VideoRoom = () => {
                 } else {
                     toast.error('Failed to access media devices.');
                 }
-                endCall();
+                // Don't call endCall() here to avoid navigation, let the user handle it
             }
         };
 
-        setupAndJoinRoom();
+        getLocalStream();
+    }, [isWebRTCSupported, authUser]);
+
+    // Effect to handle socket events and peer connections
+    useEffect(() => {
+        if (!socket || !roomId || !localStream) {
+            return;
+        }
+
+        // Join the room after the local stream is available
+        socket.emit('join-room', { 
+            roomId: roomId,
+            userId: authUser._id,
+            userName: authUser.fullName
+        });
 
         // Socket event listeners
         socket.on('room-info', (info) => {
@@ -159,7 +169,7 @@ const VideoRoom = () => {
             
             // For each existing user in the room, create a new peer connection
             info.participants.forEach(p => {
-                if (p.userId !== authUser._id && localStream) {
+                if (p.userId !== authUser._id) {
                     createPeer(p.userId, localStream);
                 }
             });
@@ -169,9 +179,7 @@ const VideoRoom = () => {
             if (userId !== authUser._id) {
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
-                if (localStream) {
-                    createPeer(userId, localStream);
-                }
+                createPeer(userId, localStream);
             }
         });
 
@@ -191,9 +199,7 @@ const VideoRoom = () => {
         });
 
         socket.on('receiving-signal', ({ signal, callerId }) => {
-            if (localStream) {
-                addPeer(signal, callerId, localStream);
-            }
+            addPeer(signal, callerId, localStream);
         });
 
         socket.on('returning-signal', ({ signal, callerId }) => {
@@ -209,7 +215,7 @@ const VideoRoom = () => {
         });
 
         return () => {
-            // Cleanup on unmount
+            // Cleanup on unmount, but don't navigate
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
             }
@@ -225,7 +231,7 @@ const VideoRoom = () => {
             socket.off('returning-signal');
             socket.off('room-closed');
         };
-    }, [socket, roomId, authUser, localStream]);
+    }, [socket, roomId, authUser, localStream, createPeer, addPeer, endCall]);
 
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">
