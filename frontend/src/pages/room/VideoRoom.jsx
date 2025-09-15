@@ -58,59 +58,60 @@ const VideoRoom = () => {
     }, [localStream]);
 
     const createPeer = useCallback((userId, stream, isInitiator) => {
-        console.log(`[CREATE PEER] Creating peer for user: ${userId}, Initiator: ${isInitiator}`);
-        const peer = new Peer({
-            initiator: isInitiator,
-            trickle: false,
-            stream,
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
-                ]
-            }
-        });
+    console.log(`[CREATE PEER] Creating peer for user: ${userId}, Initiator: ${isInitiator}`);
+    const peer = new Peer({
+        initiator: isInitiator,
+        trickle: false,
+        stream,
+        config: {
+            iceServers: [
+                // A STUN server helps peers find their public IP and port
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
+        }
+    });
 
-        // Log peer connection state changes
-        peer.on('connect', () => {
-            console.log(`[PEER CONNECTED] Peer connection established with ${userId}`);
-        });
+    // Log peer connection state changes
+    peer.on('connect', () => {
+        console.log(`[PEER CONNECTED] Peer connection established with ${userId}`);
+    });
 
-        peer.on('signal', signal => {
-            console.log(`[SIGNAL] Generated signal for ${userId}:`, signal);
-            if (isInitiator) {
-                socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
-                console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}`);
-            } else {
-                socket.emit('returning-signal', { signal, callerId: userId });
-                console.log(`[SIGNALING] Emitting 'returning-signal' to server for user ${userId}`);
-            }
-        });
+    peer.on('signal', signal => {
+        console.log(`[SIGNAL] Generated signal for ${userId}:`, signal);
+        if (isInitiator) {
+            socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
+            console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}`);
+        } else {
+            socket.emit('returning-signal', { signal, callerId: userId });
+            console.log(`[SIGNALING] Emitting 'returning-signal' to server for user ${userId}`);
+        }
+    });
 
-        peer.on('stream', remoteStream => {
-            console.log(`[STREAM] Received remote stream from user: ${userId}`);
-            setRemoteStreams(prevStreams => ({
-                ...prevStreams,
-                [userId]: remoteStream
-            }));
-        });
+    peer.on('stream', remoteStream => {
+        console.log(`[STREAM] Received remote stream from user: ${userId}`);
+        setRemoteStreams(prevStreams => ({
+            ...prevStreams,
+            [userId]: remoteStream
+        }));
+    });
 
-        peer.on('close', () => {
-            console.log(`[PEER CLOSE] Peer connection closed with user: ${userId}`);
-            peer.destroy();
-            delete peersRef.current[userId];
-            setRemoteStreams(prevStreams => {
-                const newStreams = { ...prevStreams };
-                delete newStreams[userId];
-                return newStreams;
-            });
+    peer.on('close', () => {
+        console.log(`[PEER CLOSE] Peer connection closed with user: ${userId}`);
+        peer.destroy();
+        delete peersRef.current[userId];
+        setRemoteStreams(prevStreams => {
+            const newStreams = { ...prevStreams };
+            delete newStreams[userId];
+            return newStreams;
         });
+    });
 
-        peer.on('error', err => console.error(`[PEER ERROR] Peer connection error with user ${userId}:`, err));
-        
-        peersRef.current[userId] = peer;
-        return peer;
-    }, [socket, authUser]);
+    peer.on('error', err => console.error(`[PEER ERROR] Peer connection error with user ${userId}:`, err));
+    
+    peersRef.current[userId] = peer;
+    return peer;
+}, [socket, authUser]);
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
         console.log(`[ADD PEER] Adding peer for user: ${callerId}. Processing incoming signal.`);
