@@ -22,7 +22,7 @@ export const getReceiverSocketId = (receiverId) => {
 const userSocketMap = {};
 const rooms = {};
 const videoRooms = {};
-const socketUserMap = {}; // New: Map socket IDs directly to user IDs
+const socketUserMap = {};
 
 const roomUserSocketMap = {};
 
@@ -32,7 +32,7 @@ io.on("connection", (socket) => {
     const userId = socket.handshake.query.userId;
     if (userId !== "undefined") {
         userSocketMap[userId] = socket.id;
-        socketUserMap[socket.id] = userId; // New: Store a direct mapping
+        socketUserMap[socket.id] = userId;
     }
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
@@ -204,7 +204,7 @@ io.on("connection", (socket) => {
         const userId = socketUserMap[socket.id];
         if (userId) {
             delete userSocketMap[userId];
-            delete socketUserMap[socket.id]; // New: Remove from the new map
+            delete socketUserMap[socket.id];
             io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
             const roomId = roomUserSocketMap[userId];
