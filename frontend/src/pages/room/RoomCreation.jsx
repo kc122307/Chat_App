@@ -26,7 +26,7 @@ const RoomCreation = () => {
                 setRoomCode(data.id);
                 setIsCreating(false);
                 toast.success('Room created successfully!');
-                navigate(`/rooms/${data.id}`);
+                // Removed the navigate call here
             });
             
             socket.once('room-error', (error) => {
@@ -51,8 +51,6 @@ const RoomCreation = () => {
     
     const handleRefresh = () => {
         if (roomCode) {
-            // Optional: emit an event to the server to clean up the room
-            // socket.emit('leave-room', { roomId: roomCode, userId: authUser._id });
             setRoomCode(null);
         }
         setIsCreating(false);

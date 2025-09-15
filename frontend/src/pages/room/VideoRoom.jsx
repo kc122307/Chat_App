@@ -97,6 +97,7 @@ const VideoRoom = () => {
     }, [createPeer]);
 
     useEffect(() => {
+        // This effect runs whenever localStream changes
         if (localStream && localVideoRef.current) {
             localVideoRef.current.srcObject = localStream;
         }
