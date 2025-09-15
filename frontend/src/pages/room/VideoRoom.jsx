@@ -227,22 +227,23 @@ const VideoRoom = () => {
         });
 
         return () => {
-            isMounted = false;
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            Object.values(peersRef.current).forEach(peer => peer.destroy());
-            peersRef.current = {};
-            setRemoteStreams({});
-            socket?.emit('leave-room', { roomId, userId: authUser._id });
-            
-            socket.off('room-info');
-            socket.off('user-joined');
-            socket.off('user-left');
-            socket.off('receiving-signal');
-            socket.off('returning-signal');
-            socket.off('room-closed');
-        };
+    isMounted = false;
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+    Object.values(peersRef.current).forEach(peer => peer.destroy());
+    peersRef.current = {};
+    setRemoteStreams({});
+
+    // Removed the socket.emit('leave-room', ...); line
+
+    socket.off('room-info');
+    socket.off('user-joined');
+    socket.off('user-left');
+    socket.off('receiving-signal');
+    socket.off('returning-signal');
+    socket.off('room-closed');
+};
     }, [isWebRTCSupported, authUser, socket, roomId, endCall, addPeer, createPeer, navigate]);
 
     return (

@@ -127,22 +127,26 @@ io.on("connection", (socket) => {
         });
     });
 
-    socket.on("join-room", ({ roomId, userId, userName }) => {
-        if (!videoRooms[roomId]) {
-            io.to(socket.id).emit("room-join-error", {
-                error: "Room does not exist",
-            });
-            return;
-        }
+   socket.on("join-room", ({ roomId, userId, userName }) => {
+    if (!videoRooms[roomId]) {
+        io.to(socket.id).emit("room-join-error", {
+            error: "Room does not exist",
+        });
+        return;
+    }
 
-        roomUserSocketMap[userId] = roomId;
+    const isUserAlreadyInRoom = videoRooms[roomId].participants.some(p => p.userId === userId);
 
+    if (!isUserAlreadyInRoom) {
         const participant = { userId, userName, socketId: socket.id };
         videoRooms[roomId].participants.push(participant);
-        socket.join(roomId);
-        io.to(socket.id).emit("room-info", videoRooms[roomId]);
         socket.to(roomId).emit("user-joined", { userId, userName });
-    });
+    }
+
+    socket.join(roomId);
+    io.to(socket.id).emit("room-info", videoRooms[roomId]);
+    roomUserSocketMap[userId] = roomId;
+});
 
     socket.on("leave-room", ({ roomId, userId }) => {
         if (videoRooms[roomId]) {
