@@ -125,6 +125,7 @@ const VideoRoom = () => {
         }
     }, [localStream]);
 
+    // The core fix is here: remove the function dependencies from the array
     useEffect(() => {
         let isMounted = true;
         let stream = null;
@@ -159,6 +160,7 @@ const VideoRoom = () => {
 
         getLocalStreamAndJoinRoom();
 
+        // The socket listeners are now defined inside the effect to use the 'stream' variable
         socket.on('room-info', (info) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'room-info'`, info);
@@ -227,24 +229,24 @@ const VideoRoom = () => {
         });
 
         return () => {
-    isMounted = false;
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-    }
-    Object.values(peersRef.current).forEach(peer => peer.destroy());
-    peersRef.current = {};
-    setRemoteStreams({});
-
-    // Removed the socket.emit('leave-room', ...); line
-
-    socket.off('room-info');
-    socket.off('user-joined');
-    socket.off('user-left');
-    socket.off('receiving-signal');
-    socket.off('returning-signal');
-    socket.off('room-closed');
-};
-    }, [isWebRTCSupported, authUser, socket, roomId, endCall, addPeer, createPeer, navigate]);
+            isMounted = false;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            Object.values(peersRef.current).forEach(peer => peer.destroy());
+            peersRef.current = {};
+            setRemoteStreams({});
+            
+            socket.off('room-info');
+            socket.off('user-joined');
+            socket.off('user-left');
+            socket.off('receiving-signal');
+            socket.off('returning-signal');
+            socket.off('room-closed');
+        };
+    }, [isWebRTCSupported, authUser, socket, roomId, navigate]);
+    // The dependency array is now much smaller and contains only stable values.
+    // endCall, addPeer, and createPeer are removed from the array.
 
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">
