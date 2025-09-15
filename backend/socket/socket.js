@@ -24,6 +24,9 @@ const userSocketMap = {};
 const rooms = {};
 const videoRooms = {};
 
+// New data structure for fast lookup of room participants' sockets
+const roomUserSocketMap = {};
+
 io.on("connection", (socket) => {
 	console.log("a user connected", socket.id);
 
@@ -106,6 +109,10 @@ io.on("connection", (socket) => {
             }]
         };
         socket.join(roomId);
+
+        // Add user to the roomUserSocketMap
+        roomUserSocketMap[userId] = roomId;
+
         io.to(socket.id).emit("video-room-created", videoRooms[roomId]);
     });
     
@@ -120,6 +127,9 @@ io.on("connection", (socket) => {
             return;
         }
         
+        // Add user to the roomUserSocketMap
+        roomUserSocketMap[userId] = roomId;
+
         const participant = { userId, userName, socketId: socket.id };
         videoRooms[roomId].participants.push(participant);
         socket.join(roomId);
@@ -141,22 +151,31 @@ io.on("connection", (socket) => {
                 delete videoRooms[roomId];
             }
             
+            // Remove user from the roomUserSocketMap
+            delete roomUserSocketMap[userId];
+
             socket.leave(roomId);
         }
     });
     
-    // Fix: Correct signaling events
+    // Corrected signaling events
     socket.on("sending-signal", ({ userToSignal, signal, callerId }) => {
-        const receiverSocket = Object.values(videoRooms).flatMap(room => room.participants).find(p => p.userId === userToSignal);
-        if (receiverSocket) {
-            io.to(receiverSocket.socketId).emit("receiving-signal", { signal, callerId });
+        const roomId = roomUserSocketMap[userToSignal];
+        if (roomId && videoRooms[roomId]) {
+            const receiverSocket = videoRooms[roomId].participants.find(p => p.userId === userToSignal);
+            if (receiverSocket) {
+                io.to(receiverSocket.socketId).emit("receiving-signal", { signal, callerId });
+            }
         }
     });
     
     socket.on("returning-signal", ({ signal, callerId }) => {
-        const receiverSocket = Object.values(videoRooms).flatMap(room => room.participants).find(p => p.userId === callerId);
-        if (receiverSocket) {
-            io.to(receiverSocket.socketId).emit("returning-signal", { signal, callerId });
+        const roomId = roomUserSocketMap[callerId];
+        if (roomId && videoRooms[roomId]) {
+            const receiverSocket = videoRooms[roomId].participants.find(p => p.userId === callerId);
+            if (receiverSocket) {
+                io.to(receiverSocket.socketId).emit("returning-signal", { signal, callerId });
+            }
         }
     });
 
@@ -164,6 +183,11 @@ io.on("connection", (socket) => {
 		console.log("user disconnected", socket.id);
 		delete userSocketMap[userId];
 		io.emit("getOnlineUsers", Object.keys(userSocketMap));
+
+        // Clean up from the roomUserSocketMap on disconnect
+        if (roomUserSocketMap[userId]) {
+            delete roomUserSocketMap[userId];
+        }
 
         for (const groupId in rooms) {
             rooms[groupId].delete(socket.id);

@@ -58,38 +58,52 @@ const VideoRoom = () => {
     }, [localStream]);
 
     const createPeer = useCallback((userId, stream, isInitiator) => {
-        const peer = new Peer({ initiator: isInitiator, trickle: false, stream });
+    const peer = new Peer({
+        initiator: isInitiator,
+        trickle: false,
+        stream,
+        config: {
+            iceServers: [
+                // A STUN server helps peers find their public IP and port
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
+                // A TURN server is a relay when a direct connection fails
+                // You must provide your own TURN server with credentials for production.
+                // { urls: 'turn:YOUR_TURN_SERVER_URL', username: 'YOUR_USERNAME', credential: 'YOUR_PASSWORD' }
+            ]
+        }
+    });
 
-        peer.on('signal', signal => {
-            if (isInitiator) {
-                socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
-            } else {
-                socket.emit('returning-signal', { signal, callerId: userId });
-            }
+    peer.on('signal', signal => {
+        if (isInitiator) {
+            socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
+        } else {
+            socket.emit('returning-signal', { signal, callerId: userId });
+        }
+    });
+
+    peer.on('stream', remoteStream => {
+        setRemoteStreams(prevStreams => ({
+            ...prevStreams,
+            [userId]: remoteStream
+        }));
+    });
+
+    peer.on('close', () => {
+        peer.destroy();
+        delete peersRef.current[userId];
+        setRemoteStreams(prevStreams => {
+            const newStreams = { ...prevStreams };
+            delete newStreams[userId];
+            return newStreams;
         });
+    });
 
-        peer.on('stream', remoteStream => {
-            setRemoteStreams(prevStreams => ({
-                ...prevStreams,
-                [userId]: remoteStream
-            }));
-        });
-
-        peer.on('close', () => {
-            peer.destroy();
-            delete peersRef.current[userId];
-            setRemoteStreams(prevStreams => {
-                const newStreams = { ...prevStreams };
-                delete newStreams[userId];
-                return newStreams;
-            });
-        });
-
-        peer.on('error', err => console.error('Peer error:', err));
-        
-        peersRef.current[userId] = peer;
-        return peer;
-    }, [socket, authUser]);
+    peer.on('error', err => console.error('Peer error:', err));
+    
+    peersRef.current[userId] = peer;
+    return peer;
+}, [socket, authUser]);
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
         const peer = createPeer(callerId, stream, false);
@@ -97,95 +111,106 @@ const VideoRoom = () => {
     }, [createPeer]);
 
     useEffect(() => {
-        // This effect runs whenever localStream changes and will set the srcObject
         if (localStream && localVideoRef.current) {
             localVideoRef.current.srcObject = localStream;
         }
     }, [localStream]);
 
     useEffect(() => {
-        if (!isWebRTCSupported || !authUser || !socket || !roomId) {
-            if (!isWebRTCSupported || !authUser) {
-                toast.error("Your browser doesn't support WebRTC or you are not authenticated.");
-            }
-            return;
-        }
+        let isMounted = true;
+        let stream = null;
 
         const getLocalStreamAndJoinRoom = async () => {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                setLocalStream(stream);
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                if (isMounted) {
+                    setLocalStream(stream);
+                }
 
-                socket.emit('join-room', {
-                    roomId: roomId,
-                    userId: authUser._id,
-                    userName: authUser.fullName
-                });
-
-                socket.on('room-info', (info) => {
-                    setRoomInfo(info);
-                    setParticipants(info.participants);
-                    info.participants.forEach(p => {
-                        if (p.userId !== authUser._id) {
-                            createPeer(p.userId, stream, true);
-                        }
+                if (isMounted) {
+                    socket.emit('join-room', {
+                        roomId: roomId,
+                        userId: authUser._id,
+                        userName: authUser.fullName
                     });
-                });
-
-                socket.on('user-joined', ({ userId, userName }) => {
-                    if (userId !== authUser._id) {
-                        toast.success(`${userName} joined the room`);
-                        setParticipants(prev => [...prev, { userId, userName }]);
-                        createPeer(userId, stream, true);
-                    }
-                });
-
-                socket.on('user-left', ({ userId, userName }) => {
-                    toast.error(`${userName} left the room`);
-                    setParticipants(prev => prev.filter(p => p.userId !== userId));
-                    if (peersRef.current[userId]) {
-                        peersRef.current[userId].destroy();
-                        delete peersRef.current[userId];
-                        setRemoteStreams(prevStreams => {
-                            const newStreams = { ...prevStreams };
-                            delete newStreams[userId];
-                            return newStreams;
-                        });
-                    }
-                });
-
-                socket.on('receiving-signal', ({ signal, callerId }) => {
-                    addPeer(signal, callerId, stream);
-                });
-
-                socket.on('returning-signal', ({ signal, callerId }) => {
-                    const peer = peersRef.current[callerId];
-                    if (peer) {
-                        peer.signal(signal);
-                    }
-                });
-
-                socket.on('room-closed', () => {
-                    toast.error('The room has been closed by the host');
-                    endCall();
-                });
-
+                }
             } catch (error) {
                 console.error('Error accessing media devices:', error);
-                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-                    toast.error('Permission to access camera and microphone was denied.');
-                } else {
-                    toast.error('Failed to access media devices.');
+                if (isMounted) {
+                    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                        toast.error('Permission to access camera and microphone was denied.');
+                    } else {
+                        toast.error('Failed to access media devices.');
+                    }
+                    navigate('/');
                 }
-                navigate('/');
             }
         };
 
         getLocalStreamAndJoinRoom();
 
+        socket.on('room-info', (info) => {
+            if (isMounted) {
+                setRoomInfo(info);
+                setParticipants(info.participants);
+                info.participants.forEach(p => {
+                    if (p.userId !== authUser._id) {
+                        createPeer(p.userId, stream, true);
+                    }
+                });
+            }
+        });
+
+        socket.on('user-joined', ({ userId, userName }) => {
+            if (isMounted && userId !== authUser._id) {
+                toast.success(`${userName} joined the room`);
+                setParticipants(prev => [...prev, { userId, userName }]);
+                createPeer(userId, stream, true);
+            }
+        });
+
+        socket.on('user-left', ({ userId, userName }) => {
+            if (isMounted) {
+                toast.error(`${userName} left the room`);
+                setParticipants(prev => prev.filter(p => p.userId !== userId));
+                if (peersRef.current[userId]) {
+                    peersRef.current[userId].destroy();
+                    delete peersRef.current[userId];
+                    setRemoteStreams(prevStreams => {
+                        const newStreams = { ...prevStreams };
+                        delete newStreams[userId];
+                        return newStreams;
+                    });
+                }
+            }
+        });
+
+        socket.on('receiving-signal', ({ signal, callerId }) => {
+            if (isMounted) {
+                addPeer(signal, callerId, stream);
+            }
+        });
+
+        socket.on('returning-signal', ({ signal, callerId }) => {
+            if (isMounted) {
+                const peer = peersRef.current[callerId];
+                if (peer) {
+                    peer.signal(signal);
+                }
+            }
+        });
+
+        socket.on('room-closed', () => {
+            if (isMounted) {
+                toast.error('The room has been closed by the host');
+                endCall();
+            }
+        });
+
         return () => {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
+            isMounted = false;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
             }
             Object.values(peersRef.current).forEach(peer => peer.destroy());
             peersRef.current = {};
