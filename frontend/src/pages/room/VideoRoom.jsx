@@ -58,56 +58,65 @@ const VideoRoom = () => {
     }, [localStream]);
 
     const createPeer = useCallback((userId, stream, isInitiator) => {
-    const peer = new Peer({
-        initiator: isInitiator,
-        trickle: false,
-        stream,
-        config: {
-            iceServers: [
-                // A STUN server helps peers find their public IP and port
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
-                // A TURN server is a relay when a direct connection fails
-                // You must provide your own TURN server with credentials for production.
-                // { urls: 'turn:YOUR_TURN_SERVER_URL', username: 'YOUR_USERNAME', credential: 'YOUR_PASSWORD' }
-            ]
-        }
-    });
-
-    peer.on('signal', signal => {
-        if (isInitiator) {
-            socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
-        } else {
-            socket.emit('returning-signal', { signal, callerId: userId });
-        }
-    });
-
-    peer.on('stream', remoteStream => {
-        setRemoteStreams(prevStreams => ({
-            ...prevStreams,
-            [userId]: remoteStream
-        }));
-    });
-
-    peer.on('close', () => {
-        peer.destroy();
-        delete peersRef.current[userId];
-        setRemoteStreams(prevStreams => {
-            const newStreams = { ...prevStreams };
-            delete newStreams[userId];
-            return newStreams;
+        console.log(`[CREATE PEER] Creating peer for user: ${userId}, Initiator: ${isInitiator}`);
+        const peer = new Peer({
+            initiator: isInitiator,
+            trickle: false,
+            stream,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:global.stun.twilio.com:3478' }
+                ]
+            }
         });
-    });
 
-    peer.on('error', err => console.error('Peer error:', err));
-    
-    peersRef.current[userId] = peer;
-    return peer;
-}, [socket, authUser]);
+        // Log peer connection state changes
+        peer.on('connect', () => {
+            console.log(`[PEER CONNECTED] Peer connection established with ${userId}`);
+        });
+
+        peer.on('signal', signal => {
+            console.log(`[SIGNAL] Generated signal for ${userId}:`, signal);
+            if (isInitiator) {
+                socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
+                console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}`);
+            } else {
+                socket.emit('returning-signal', { signal, callerId: userId });
+                console.log(`[SIGNALING] Emitting 'returning-signal' to server for user ${userId}`);
+            }
+        });
+
+        peer.on('stream', remoteStream => {
+            console.log(`[STREAM] Received remote stream from user: ${userId}`);
+            setRemoteStreams(prevStreams => ({
+                ...prevStreams,
+                [userId]: remoteStream
+            }));
+        });
+
+        peer.on('close', () => {
+            console.log(`[PEER CLOSE] Peer connection closed with user: ${userId}`);
+            peer.destroy();
+            delete peersRef.current[userId];
+            setRemoteStreams(prevStreams => {
+                const newStreams = { ...prevStreams };
+                delete newStreams[userId];
+                return newStreams;
+            });
+        });
+
+        peer.on('error', err => console.error(`[PEER ERROR] Peer connection error with user ${userId}:`, err));
+        
+        peersRef.current[userId] = peer;
+        return peer;
+    }, [socket, authUser]);
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
+        console.log(`[ADD PEER] Adding peer for user: ${callerId}. Processing incoming signal.`);
         const peer = createPeer(callerId, stream, false);
         peer.signal(incomingSignal);
+        console.log(`[ADD PEER] Signal processed. Peer connection should start.`);
     }, [createPeer]);
 
     useEffect(() => {
@@ -133,9 +142,10 @@ const VideoRoom = () => {
                         userId: authUser._id,
                         userName: authUser.fullName
                     });
+                    console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}`);
                 }
             } catch (error) {
-                console.error('Error accessing media devices:', error);
+                console.error('[MEDIA ERROR] Error accessing media devices:', error);
                 if (isMounted) {
                     if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
                         toast.error('Permission to access camera and microphone was denied.');
@@ -151,10 +161,12 @@ const VideoRoom = () => {
 
         socket.on('room-info', (info) => {
             if (isMounted) {
+                console.log(`[SOCKET] Received 'room-info'`, info);
                 setRoomInfo(info);
                 setParticipants(info.participants);
                 info.participants.forEach(p => {
                     if (p.userId !== authUser._id) {
+                        console.log(`[PEER CREATION] Initiating peer connection for existing user: ${p.userId}`);
                         createPeer(p.userId, stream, true);
                     }
                 });
@@ -163,14 +175,17 @@ const VideoRoom = () => {
 
         socket.on('user-joined', ({ userId, userName }) => {
             if (isMounted && userId !== authUser._id) {
+                console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId})`);
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
+                console.log(`[PEER CREATION] Initiating peer connection for new user: ${userId}`);
                 createPeer(userId, stream, true);
             }
         });
 
         socket.on('user-left', ({ userId, userName }) => {
             if (isMounted) {
+                console.log(`[SOCKET] Received 'user-left' from ${userName} (${userId})`);
                 toast.error(`${userName} left the room`);
                 setParticipants(prev => prev.filter(p => p.userId !== userId));
                 if (peersRef.current[userId]) {
@@ -187,21 +202,25 @@ const VideoRoom = () => {
 
         socket.on('receiving-signal', ({ signal, callerId }) => {
             if (isMounted) {
+                console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}`);
                 addPeer(signal, callerId, stream);
             }
         });
 
         socket.on('returning-signal', ({ signal, callerId }) => {
             if (isMounted) {
+                console.log(`[SOCKET] Received 'returning-signal' from ${callerId}`);
                 const peer = peersRef.current[callerId];
                 if (peer) {
                     peer.signal(signal);
+                    console.log(`[PEER] Signaled peer for ${callerId}`);
                 }
             }
         });
 
         socket.on('room-closed', () => {
             if (isMounted) {
+                console.log('[SOCKET] Received "room-closed" event');
                 toast.error('The room has been closed by the host');
                 endCall();
             }
