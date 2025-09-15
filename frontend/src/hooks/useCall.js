@@ -24,9 +24,11 @@ const useCall = () => {
     const peersRef = useRef({});
 
     const rejectCall = useCallback(() => {
-        socket?.emit('call-rejected', { to: incomingCall.from });
-        setIncomingCall(null);
-        toast.error("Call rejected.");
+        if (incomingCall) {
+            socket?.emit('call-rejected', { to: incomingCall.from });
+            setIncomingCall(null);
+            toast.error("Call rejected.");
+        }
     }, [incomingCall, setIncomingCall, socket]);
 
     const toggleAudio = useCallback(() => {
@@ -50,94 +52,177 @@ const useCall = () => {
     const endCall = useCallback(() => {
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
+            setLocalStream(null);
         }
         Object.values(peersRef.current).forEach(peer => peer.destroy());
+        peersRef.current = {};
         setRemoteStreams({});
         socket?.emit('end-call', { to: selectedConversation?._id, isGroup: selectedConversation?.isGroup });
+        setIncomingCall(null);
         navigate('/');
-    }, [localStream, navigate, selectedConversation, socket]);
+    }, [localStream, navigate, selectedConversation, socket, setIncomingCall]);
 
     const acceptCall = useCallback(async () => {
-        try {
-            if (!isWebRTCSupported) {
-                toast.error("Your browser doesn't support WebRTC for calls.");
-                setIncomingCall(null);
-                return;
-            }
-            
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                toast.error("Your browser doesn't support calls.");
-                setIncomingCall(null);
-                return;
-            }
+        if (!isWebRTCSupported) {
+            toast.error("Your browser doesn't support WebRTC for calls.");
+            setIncomingCall(null);
+            return;
+        }
 
+        try {
             const isAudioOnly = incomingCall.callType === 'audio';
-            
-            toast.loading(`Accessing ${isAudioOnly ? 'microphone' : 'camera and microphone'}...`);
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: !isAudioOnly, 
                 audio: true 
             });
-            toast.dismiss();
             setLocalStream(stream);
             setIsVideoEnabled(!isAudioOnly);
-
-            try {
-                const peer = new Peer({ initiator: false, trickle: false, stream, objectMode: true });
-                peer.on('signal', (signal) => {
-                    socket.emit('call-accepted', { to: incomingCall.from, signal });
-                });
-                peer.on('stream', (stream) => {
-                    setRemoteStreams({ [incomingCall.from]: stream });
-                });
-                peer.on('error', (err) => {
-                    console.error("Peer connection error:", err);
-                    toast.error("Error in call connection");
-                    endCall();
-                });
-                peer.signal(incomingCall.signal);
-                peersRef.current[incomingCall.from] = peer;
-                setIncomingCall(null);
-                navigate('/call');
-            } catch (peerError) {
-                console.error("Failed to create peer connection", peerError);
-                toast.error("Failed to establish call connection");
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                }
-                setLocalStream(null);
-                setIncomingCall(null);
-            }
-        } catch (err) {
-            toast.dismiss();
-            console.error("Failed to get local stream", err);
             
+            const peer = new Peer({ initiator: false, trickle: false, stream });
+            
+            peer.on('signal', (signal) => {
+                socket.emit('call-accepted', { to: incomingCall.from, signal });
+            });
+            
+            peer.on('stream', (stream) => {
+                setRemoteStreams({ [incomingCall.from]: stream });
+            });
+            
+            peer.on('error', (err) => {
+                console.error("Peer connection error:", err);
+                toast.error("Error in call connection");
+                endCall();
+            });
+
+            peer.signal(incomingCall.signal);
+            peersRef.current[incomingCall.from] = peer;
+            setIncomingCall(null);
+            navigate('/call');
+
+        } catch (err) {
+            console.error("Failed to get local stream", err);
             if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                toast.error("Permission denied. Please allow access to camera/microphone in your browser settings.");
-            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-                toast.error("No camera or microphone found. Please check your devices.");
-            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-                toast.error("Your camera or microphone is already in use by another application.");
+                toast.error("Permission denied. Please allow access to camera/microphone.");
             } else {
-                toast.error("Failed to access camera/mic. Please check your permissions.");
+                toast.error("Failed to access camera/mic.");
             }
             setIncomingCall(null);
         }
     }, [incomingCall, navigate, setIncomingCall, socket, isWebRTCSupported, endCall]);
 
+    const createPeer = useCallback((userId, stream, isInitiator) => {
+        const peer = new Peer({ initiator: isInitiator, trickle: false, stream });
+
+        peer.on('signal', signal => {
+            if (isInitiator) {
+                socket.emit('sending-signal', { userToSignal: userId, signal, callerId: socket.id });
+            } else {
+                socket.emit('returning-signal', { signal, callerId: userId });
+            }
+        });
+
+        peer.on('stream', remoteStream => {
+            setRemoteStreams(prev => ({
+                ...prev,
+                [userId]: remoteStream
+            }));
+        });
+
+        peer.on('close', () => {
+            peer.destroy();
+            delete peersRef.current[userId];
+            setRemoteStreams(prev => {
+                const newStreams = { ...prev };
+                delete newStreams[userId];
+                return newStreams;
+            });
+        });
+
+        peer.on('error', err => {
+            console.error("Peer error:", err);
+            toast.error("Peer connection error.");
+        });
+
+        peersRef.current[userId] = peer;
+        return peer;
+    }, [socket]);
+
+    const startCall = useCallback(async (callType) => {
+        if (!isWebRTCSupported) {
+            toast.error("Your browser doesn't support WebRTC.");
+            return;
+        }
+        
+        try {
+            const isAudioOnly = callType === 'audio';
+            const stream = await navigator.mediaDevices.getUserMedia({ video: !isAudioOnly, audio: true });
+            setLocalStream(stream);
+            setIsVideoEnabled(!isAudioOnly);
+
+            const userToCall = selectedConversation._id;
+
+            const peer = createPeer(userToCall, stream, true);
+            peer.on('signal', (signal) => {
+                socket.emit('call-user', { userToCall, signal, callType });
+            });
+            
+            navigate('/call');
+
+        } catch (err) {
+            console.error("Failed to get local stream", err);
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                toast.error("Permission denied. Please allow access to camera/microphone.");
+            } else {
+                toast.error("Failed to access camera/mic.");
+            }
+        }
+    }, [isWebRTCSupported, selectedConversation, navigate, createPeer, socket]);
+
+    const startVideoCall = useCallback(() => startCall('video'), [startCall]);
+    const startAudioCall = useCallback(() => startCall('audio'), [startCall]);
+
+    const startGroupCall = async () => {
+        if (!isWebRTCSupported || !selectedConversation.isGroup) {
+            toast.error("Invalid group or browser support.");
+            return;
+        }
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            setLocalStream(stream);
+            
+            selectedConversation.members.forEach(memberId => {
+                if (memberId !== authUser._id) {
+                    createPeer(memberId, stream, true);
+                }
+            });
+
+            socket.emit('start-group-call', { 
+                groupId: selectedConversation._id, 
+                participants: selectedConversation.members 
+            });
+            
+            navigate('/call');
+
+        } catch (err) {
+            console.error("Failed to get local stream", err);
+            toast.error("Failed to access camera/mic.");
+        }
+    };
+    
     useEffect(() => {
         const supported = checkWebRTCSupport();
         setIsWebRTCSupported(supported);
         if (!supported) {
-            toast.error("Your browser doesn't fully support WebRTC. Video/audio calls may not work properly.");
+            toast.error("Your browser doesn't fully support WebRTC.");
         }
     }, []);
 
     useEffect(() => {
         if (!socket) return;
         
-        socket.on('call-received', ({ from, signal }) => {
-            setIncomingCall({ from, signal });
+        socket.on('call-received', ({ from, signal, callType }) => {
+            setIncomingCall({ from, signal, callType });
         });
 
         socket.on('call-accepted', ({ from, signal }) => {
@@ -170,166 +255,6 @@ const useCall = () => {
             socket.off('call-failed');
         };
     }, [socket, endCall, setIncomingCall]);
-
-    const startVideoCall = async () => {
-    try {
-        if (!isWebRTCSupported) {
-            toast.error("Your browser doesn't support WebRTC for video calls.");
-            return;
-        }
-        
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            toast.error("Your browser doesn't support video calls.");
-            return;
-        }
-
-        toast.loading("Accessing camera and microphone...");
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        toast.dismiss();
-        setLocalStream(stream);
-
-        try {
-            const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true });
-
-            peer.on('signal', (signal) => {
-                if (socket) {
-                    socket.emit('call-user', { userToCall: selectedConversation._id, signal, callType: 'video' });
-                } else {
-                    toast.error("Socket not connected. Please try again.");
-                }
-            });
-
-            peer.on('stream', (stream) => {
-                setRemoteStreams({ [selectedConversation._id]: stream });
-            });
-            
-            peer.on('error', (err) => {
-                console.error("Peer connection error:", err);
-                toast.error("Error in call connection");
-                endCall();
-            });
-
-            peersRef.current[selectedConversation._id] = peer;
-            navigate('/call');
-        } catch (peerError) {
-            console.error("Failed to create peer connection", peerError);
-            toast.error("Failed to establish call connection");
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            setLocalStream(null);
-        }
-    } catch (err) {
-        toast.dismiss();
-        console.error("Failed to get local stream", err);
-        
-        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-            toast.error("Camera or microphone permission denied. Please allow access in your browser settings.");
-        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-            toast.error("No camera or microphone found. Please check your devices.");
-        } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-            toast.error("Your camera or microphone is already in use by another application.");
-        } else {
-            toast.error("Failed to access camera/mic. Please check your permissions.");
-        }
-    }
-};
-
-const startAudioCall = async () => {
-    try {
-        if (!isWebRTCSupported) {
-            toast.error("Your browser doesn't support WebRTC for audio calls.");
-            return;
-        }
-        
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            toast.error("Your browser doesn't support audio calls.");
-            return;
-        }
-
-        toast.loading("Accessing microphone...");
-        const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-        toast.dismiss();
-        setLocalStream(stream);
-
-        try {
-            const peer = new Peer({ initiator: true, trickle: false, stream, objectMode: true });
-
-            peer.on('signal', (signal) => {
-                if (socket) {
-                    socket.emit('call-user', { userToCall: selectedConversation._id, signal, callType: 'audio' });
-                } else {
-                    toast.error("Socket not connected. Please try again.");
-                }
-            });
-
-            peer.on('stream', (stream) => {
-                setRemoteStreams({ [selectedConversation._id]: stream });
-            });
-            
-            peer.on('error', (err) => {
-                console.error("Peer connection error:", err);
-                toast.error("Error in call connection");
-                endCall();
-            });
-
-            peersRef.current[selectedConversation._id] = peer;
-            navigate('/call');
-        } catch (peerError) {
-            console.error("Failed to create peer connection", peerError);
-            toast.error("Failed to establish call connection");
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            setLocalStream(null);
-        }
-    } catch (err) {
-        toast.dismiss();
-        console.error("Failed to get local stream", err);
-        
-        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-            toast.error("Microphone permission denied. Please allow access in your browser settings.");
-        } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-            toast.error("No microphone found. Please check your devices.");
-        } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-            toast.error("Your microphone is already in use by another application.");
-        } else {
-            toast.error("Failed to access microphone. Please check your permissions.");
-        }
-    }
-};
-
-    const startGroupCall = async () => {
-        try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                toast.error("Your browser doesn't support video calls.");
-                return;
-            }
-
-            toast.loading("Accessing camera and microphone...");
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            toast.dismiss();
-            setLocalStream(stream);
-
-            socket.emit('start-group-call', { groupId: selectedConversation._id, participants: selectedConversation.members });
-            
-            navigate('/call');
-
-        } catch (err) {
-            toast.dismiss();
-            console.error("Failed to get local stream", err);
-            
-            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                toast.error("Camera or microphone permission denied. Please allow access in your browser settings.");
-            } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-                toast.error("No camera or microphone found. Please check your devices.");
-            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-                toast.error("Your camera or microphone is already in use by another application.");
-            } else {
-                toast.error("Failed to access camera/mic. Please check your permissions.");
-            }
-        }
-    };
 
     return {
         localStream,

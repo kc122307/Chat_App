@@ -57,6 +57,51 @@ const VideoRoom = () => {
         }
     }, [localStream]);
 
+    const createPeer = useCallback((userId, stream, isInitiator) => {
+        const peer = new Peer({ initiator: isInitiator, trickle: false, stream });
+
+        peer.on('signal', signal => {
+            if (isInitiator) {
+                socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
+            } else {
+                socket.emit('returning-signal', { signal, callerId: userId });
+            }
+        });
+
+        peer.on('stream', remoteStream => {
+            setRemoteStreams(prevStreams => ({
+                ...prevStreams,
+                [userId]: remoteStream
+            }));
+        });
+
+        peer.on('close', () => {
+            peer.destroy();
+            delete peersRef.current[userId];
+            setRemoteStreams(prevStreams => {
+                const newStreams = { ...prevStreams };
+                delete newStreams[userId];
+                return newStreams;
+            });
+        });
+
+        peer.on('error', err => console.error('Peer error:', err));
+        
+        peersRef.current[userId] = peer;
+        return peer;
+    }, [socket, authUser]);
+
+    const addPeer = useCallback((incomingSignal, callerId, stream) => {
+        const peer = createPeer(callerId, stream, false);
+        peer.signal(incomingSignal);
+    }, [createPeer]);
+
+    useEffect(() => {
+        if (localStream && localVideoRef.current) {
+            localVideoRef.current.srcObject = localStream;
+        }
+    }, [localStream]);
+
     useEffect(() => {
         if (!isWebRTCSupported || !authUser || !socket || !roomId) {
             if (!isWebRTCSupported || !authUser) {
@@ -65,61 +110,10 @@ const VideoRoom = () => {
             return;
         }
 
-        const createPeer = (userId, stream) => {
-            const peer = new Peer({ initiator: true, trickle: false, stream });
-            peer.on('signal', signal => {
-                socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
-            });
-            peer.on('stream', remoteStream => {
-                setRemoteStreams(prevStreams => ({
-                    ...prevStreams,
-                    [userId]: remoteStream
-                }));
-            });
-            peer.on('close', () => {
-                peer.destroy();
-                delete peersRef.current[userId];
-                setRemoteStreams(prevStreams => {
-                    const newStreams = { ...prevStreams };
-                    delete newStreams[userId];
-                    return newStreams;
-                });
-            });
-            peer.on('error', err => console.error('Peer error:', err));
-            peersRef.current[userId] = peer;
-        };
-
-        const addPeer = (incomingSignal, callerId, stream) => {
-            const peer = new Peer({ initiator: false, trickle: false, stream });
-            peer.on('signal', signal => {
-                socket.emit('returning-signal', { signal, callerId });
-            });
-            peer.on('stream', remoteStream => {
-                setRemoteStreams(prevStreams => ({
-                    ...prevStreams,
-                    [callerId]: remoteStream
-                }));
-            });
-            peer.on('close', () => {
-                peer.destroy();
-                delete peersRef.current[callerId];
-                setRemoteStreams(prevStreams => {
-                    const newStreams = { ...prevStreams };
-                    delete newStreams[callerId];
-                    return newStreams;
-                });
-            });
-            peer.signal(incomingSignal);
-            peersRef.current[callerId] = peer;
-        };
-
         const getLocalStreamAndJoinRoom = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 setLocalStream(stream);
-                if (localVideoRef.current) {
-                    localVideoRef.current.srcObject = stream;
-                }
 
                 socket.emit('join-room', {
                     roomId: roomId,
@@ -132,7 +126,7 @@ const VideoRoom = () => {
                     setParticipants(info.participants);
                     info.participants.forEach(p => {
                         if (p.userId !== authUser._id) {
-                            createPeer(p.userId, stream);
+                            createPeer(p.userId, stream, true);
                         }
                     });
                 });
@@ -141,7 +135,7 @@ const VideoRoom = () => {
                     if (userId !== authUser._id) {
                         toast.success(`${userName} joined the room`);
                         setParticipants(prev => [...prev, { userId, userName }]);
-                        createPeer(userId, stream);
+                        createPeer(userId, stream, true);
                     }
                 });
 
@@ -179,11 +173,10 @@ const VideoRoom = () => {
                 console.error('Error accessing media devices:', error);
                 if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
                     toast.error('Permission to access camera and microphone was denied.');
-                } else if (error.name === 'NotFoundError') {
-                    toast.error('No camera or microphone found.');
                 } else {
                     toast.error('Failed to access media devices.');
                 }
+                navigate('/');
             }
         };
 
@@ -205,7 +198,7 @@ const VideoRoom = () => {
             socket.off('returning-signal');
             socket.off('room-closed');
         };
-    }, [isWebRTCSupported, authUser, socket, roomId, endCall]);
+    }, [isWebRTCSupported, authUser, socket, roomId, endCall, addPeer, createPeer, navigate]);
 
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">

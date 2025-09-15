@@ -13,15 +13,6 @@ const RoomCreation = () => {
     const { authUser } = useAuthContext();
     const navigate = useNavigate();
 
-    const generateRoomCode = () => {
-        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        let result = '';
-        for (let i = 0; i < 6; i++) {
-            result += characters.charAt(Math.floor(Math.random() * characters.length));
-        }
-        return result;
-    };
-
     const handleCreateRoom = () => {
         setIsCreating(true);
         
@@ -59,7 +50,11 @@ const RoomCreation = () => {
     };
     
     const handleRefresh = () => {
-        setRoomCode(null);
+        if (roomCode) {
+            // Optional: emit an event to the server to clean up the room
+            // socket.emit('leave-room', { roomId: roomCode, userId: authUser._id });
+            setRoomCode(null);
+        }
         setIsCreating(false);
     };
 
