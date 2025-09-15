@@ -26,7 +26,6 @@ const RoomCreation = () => {
                 setRoomCode(data.id);
                 setIsCreating(false);
                 toast.success('Room created successfully!');
-                // Removed the navigate call here
             });
             
             socket.once('room-error', (error) => {
