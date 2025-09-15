@@ -127,34 +127,24 @@ io.on("connection", (socket) => {
         });
     });
 
-    // The core change is here: The server explicitly manages peer creation for all users
     socket.on("join-room", ({ roomId, userId, userName }) => {
         if (!videoRooms[roomId]) {
-            io.to(socket.id).emit("room-join-error", { error: "Room does not exist" });
+            io.to(socket.id).emit("room-join-error", {
+                error: "Room does not exist",
+            });
             return;
         }
 
         const isUserAlreadyInRoom = videoRooms[roomId].participants.some(p => p.userId === userId);
         
         if (!isUserAlreadyInRoom) {
-            // New user joins. Tell existing users to create a peer with the new user.
-            videoRooms[roomId].participants.forEach(p => {
-                io.to(p.socketId).emit("user-joined", { userId, userName });
-            });
-            
-            // Add the new participant to the room
             const participant = { userId, userName, socketId: socket.id };
             videoRooms[roomId].participants.push(participant);
-            
-            // Tell the new user about all existing users so they can create peers
-            const existingUsers = videoRooms[roomId].participants.filter(p => p.userId !== userId);
-            io.to(socket.id).emit("room-info", { ...videoRooms[roomId], participants: existingUsers });
-        } else {
-            // User is already in the room, just send them the current room info
-            io.to(socket.id).emit("room-info", videoRooms[roomId]);
+            socket.to(roomId).emit("user-joined", { userId, userName });
         }
         
         socket.join(roomId);
+        io.to(socket.id).emit("room-info", videoRooms[roomId]);
         roomUserSocketMap[userId] = roomId;
     });
 
