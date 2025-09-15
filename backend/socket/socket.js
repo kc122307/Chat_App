@@ -127,7 +127,7 @@ io.on("connection", (socket) => {
         });
     });
 
-   socket.on("join-room", ({ roomId, userId, userName }) => {
+  socket.on("join-room", ({ roomId, userId, userName }) => {
     if (!videoRooms[roomId]) {
         io.to(socket.id).emit("room-join-error", {
             error: "Room does not exist",
@@ -136,13 +136,14 @@ io.on("connection", (socket) => {
     }
 
     const isUserAlreadyInRoom = videoRooms[roomId].participants.some(p => p.userId === userId);
-
+    
     if (!isUserAlreadyInRoom) {
         const participant = { userId, userName, socketId: socket.id };
         videoRooms[roomId].participants.push(participant);
+        // Only emit 'user-joined' to other users if a new user is actually joining
         socket.to(roomId).emit("user-joined", { userId, userName });
     }
-
+    
     socket.join(roomId);
     io.to(socket.id).emit("room-info", videoRooms[roomId]);
     roomUserSocketMap[userId] = roomId;
