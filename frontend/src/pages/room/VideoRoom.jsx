@@ -59,12 +59,13 @@ const VideoRoom = () => {
 
     const createPeer = useCallback((userId, stream, isInitiator) => {
         console.log(`[CREATE PEER] Creating peer for user: ${userId}, Initiator: ${isInitiator}`);
-        // Ensure stream is not null before proceeding
+        
+        // This check is the primary fix for the TypeError
         if (!stream) {
-            console.error('[CREATE PEER ERROR] Stream is null or undefined.');
+            console.error('[CREATE PEER ERROR] Stream is null or undefined, cannot create peer.');
             return;
         }
-        
+
         const peer = new Peer({
             initiator: isInitiator,
             trickle: false,
@@ -119,11 +120,13 @@ const VideoRoom = () => {
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
         console.log(`[ADD PEER] Adding peer for user: ${callerId}. Processing incoming signal.`);
-        // Ensure stream is not null before proceeding
+        
+        // This check is the primary fix for the TypeError
         if (!stream) {
-            console.error('[ADD PEER ERROR] Stream is null or undefined.');
+            console.error('[ADD PEER ERROR] Stream is null or undefined, cannot add peer.');
             return;
         }
+        
         const peer = createPeer(callerId, stream, false);
         if (peer) {
             peer.signal(incomingSignal);
@@ -154,7 +157,7 @@ const VideoRoom = () => {
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
                 
-                // IMPORTANT: Only create peer if local stream is available
+                // CRITICAL FIX: Ensure localStream is available before creating a peer
                 if (localStream) {
                     createPeer(userId, localStream, true);
                 } else {
@@ -183,7 +186,8 @@ const VideoRoom = () => {
         socket.on('receiving-signal', ({ signal, callerId }) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}`);
-                // IMPORTANT: Only add peer if local stream is available
+                
+                // CRITICAL FIX: Ensure localStream is available before adding a peer
                 if (localStream) {
                     addPeer(signal, callerId, localStream);
                 } else {
@@ -232,7 +236,7 @@ const VideoRoom = () => {
                     console.log('[MEDIA] Local stream obtained successfully.');
                     setLocalStream(stream);
                 }
-                
+
                 if (isMounted) {
                     socket.emit('join-room', {
                         roomId: roomId,
