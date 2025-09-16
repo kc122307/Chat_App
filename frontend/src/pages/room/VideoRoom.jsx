@@ -59,6 +59,12 @@ const VideoRoom = () => {
 
     const createPeer = useCallback((userId, stream, isInitiator) => {
         console.log(`[CREATE PEER] Creating peer for user: ${userId}, Initiator: ${isInitiator}`);
+        // Ensure stream is not null before proceeding
+        if (!stream) {
+            console.error('[CREATE PEER ERROR] Stream is null or undefined.');
+            return;
+        }
+        
         const peer = new Peer({
             initiator: isInitiator,
             trickle: false,
@@ -113,9 +119,16 @@ const VideoRoom = () => {
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
         console.log(`[ADD PEER] Adding peer for user: ${callerId}. Processing incoming signal.`);
+        // Ensure stream is not null before proceeding
+        if (!stream) {
+            console.error('[ADD PEER ERROR] Stream is null or undefined.');
+            return;
+        }
         const peer = createPeer(callerId, stream, false);
-        peer.signal(incomingSignal);
-        console.log(`[ADD PEER] Signal processed. Peer connection should start.`);
+        if (peer) {
+            peer.signal(incomingSignal);
+            console.log(`[ADD PEER] Signal processed. Peer connection should start.`);
+        }
     }, [createPeer]);
 
     useEffect(() => {
@@ -124,7 +137,6 @@ const VideoRoom = () => {
         }
     }, [localStream]);
 
-    // Separate effect for setting up socket listeners immediately on mount
     useEffect(() => {
         let isMounted = true;
         
@@ -141,9 +153,12 @@ const VideoRoom = () => {
                 console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId})`);
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
-                // Create a peer for the new user, using the local stream if available
+                
+                // IMPORTANT: Only create peer if local stream is available
                 if (localStream) {
                     createPeer(userId, localStream, true);
+                } else {
+                    console.warn(`[WARNING] Local stream not available yet. Will create peer when it is.`);
                 }
             }
         });
@@ -168,7 +183,7 @@ const VideoRoom = () => {
         socket.on('receiving-signal', ({ signal, callerId }) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}`);
-                // Add the new peer, passing the local stream
+                // IMPORTANT: Only add peer if local stream is available
                 if (localStream) {
                     addPeer(signal, callerId, localStream);
                 } else {
@@ -207,7 +222,6 @@ const VideoRoom = () => {
         };
     }, [isWebRTCSupported, authUser, socket, roomId, navigate, endCall, addPeer, createPeer, localStream]);
 
-    // Separate effect for getting the local stream and joining the room
     useEffect(() => {
         let isMounted = true;
         
@@ -218,7 +232,7 @@ const VideoRoom = () => {
                     console.log('[MEDIA] Local stream obtained successfully.');
                     setLocalStream(stream);
                 }
-
+                
                 if (isMounted) {
                     socket.emit('join-room', {
                         roomId: roomId,
@@ -253,7 +267,7 @@ const VideoRoom = () => {
             console.log('[CLEANUP] Disconnecting from room and destroying peers.');
         };
     }, [authUser, navigate, roomId, socket]);
-    
+
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">
             <div className="bg-gray-800 p-4 flex justify-between items-center z-10">
