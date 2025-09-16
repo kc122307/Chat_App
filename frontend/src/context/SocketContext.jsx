@@ -16,43 +16,50 @@ export const SocketContextProvider = ({ children }) => {
     const { setIncomingCall } = useConversation();
 
     useEffect(() => {
-        if (authUser) {
+        // Only create a new socket if one doesn't exist and a user is authenticated
+        if (authUser && !socket) {
             const backendUrl = import.meta.env.VITE_BACKEND_URL;
-            const socket = io(backendUrl, {
+            const newSocket = io(backendUrl, {
                 query: {
                     userId: authUser._id,
                 },
             });
 
-            setSocket(socket);
+            setSocket(newSocket);
 
-            socket.on("getOnlineUsers", (users) => {
+            newSocket.on("getOnlineUsers", (users) => {
                 setOnlineUsers(users);
             });
 
-            // Listen for incoming calls
-            socket.on('call-received', ({ from, signal, callType }) => {
+            newSocket.on('call-received', ({ from, signal, callType }) => {
                 setIncomingCall({ from, signal, callType });
             });
             
-            // Listen for call rejections
-            socket.on('call-rejected', () => {
+            newSocket.on('call-rejected', () => {
                 setIncomingCall(null);
             });
             
-            // Listen for call failures (user offline, etc.)
-            socket.on('call-failed', () => {
+            newSocket.on('call-failed', () => {
                 setIncomingCall(null);
             });
-
-            return () => socket.close();
-        } else {
-            if (socket) {
-                socket.close();
-                setSocket(null);
-            }
+            
+            // Cleanup function to close the socket
+            return () => {
+                newSocket.off("getOnlineUsers");
+                newSocket.off("call-received");
+                newSocket.off("call-rejected");
+                newSocket.off("call-failed");
+                newSocket.close();
+            };
         }
-    }, [authUser]); // Removed setIncomingCall from the dependency array
+        
+        // If the user logs out, close the socket
+        if (!authUser && socket) {
+            socket.close();
+            setSocket(null);
+        }
+
+    }, [authUser]); // Depend only on authUser to trigger login/logout actions
 
     return <SocketContext.Provider value={{ socket, onlineUsers }}>{children}</SocketContext.Provider>;
 };
