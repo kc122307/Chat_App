@@ -60,6 +60,12 @@ const VideoRoom = () => {
         }
     }, [localStream]);
 
+    // Use a ref to hold the latest local stream to avoid stale closures in event handlers.
+    const localStreamRef = useRef(localStream);
+    useEffect(() => {
+        localStreamRef.current = localStream;
+    }, [localStream]);
+
     const createPeer = useCallback((userId, stream, isInitiator) => {
         console.log(`[CREATE PEER] Attempting to create peer for user: ${userId}, Initiator: ${isInitiator}`);
         
@@ -138,7 +144,8 @@ const VideoRoom = () => {
         }
     }, [createPeer]);
 
-    // Separate useEffect for getting the local stream and joining the room.
+    // This useEffect is for getting the local stream and joining the room.
+    // It runs only once on mount.
     useEffect(() => {
         let isMounted = true;
         
@@ -179,8 +186,8 @@ const VideoRoom = () => {
 
         return () => {
             isMounted = false;
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => track.stop());
             }
             Object.values(peersRef.current).forEach(peer => peer.destroy());
             peersRef.current = {};
@@ -189,21 +196,42 @@ const VideoRoom = () => {
         };
     }, [authUser, navigate, roomId, socket, isWebRTCSupported]);
 
-    // New useEffect to handle local video element attachment.
-    useEffect(() => {
-        if (localStream && localVideoRef.current) {
-            console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
-            localVideoRef.current.srcObject = localStream;
-        }
-    }, [localStream]);
-
-    // New useEffect to handle all socket listeners. This runs once when the socket is available.
+    // This useEffect is for handling all socket listeners.
+    // It runs when the socket is available and when localStream is updated.
     useEffect(() => {
         if (!socket) return;
         
         let isMounted = true;
-        console.log('[SOCKET LISTENERS] Attaching socket listeners.');
+        
+        const handleUserJoined = ({ userId, userName }) => {
+            if (isMounted && userId !== authUser._id) {
+                console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId}).`);
+                toast.success(`${userName} joined the room`);
+                setParticipants(prev => [...prev, { userId, userName }]);
+                
+                console.log(`[USER JOINED] Current localStream ref state:`, localStreamRef.current);
+                if (localStreamRef.current) {
+                    console.log(`[USER JOINED] Local stream is available. Creating peer for ${userName}.`);
+                    createPeer(userId, localStreamRef.current, true);
+                } else {
+                    console.warn(`[WARNING] Local stream not available yet. Will create peer when it is.`);
+                }
+            }
+        };
 
+        const handleReceivingSignal = ({ signal, callerId }) => {
+            if (isMounted) {
+                console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}.`);
+                console.log(`[RECEIVING SIGNAL] Current localStream ref state:`, localStreamRef.current);
+                if (localStreamRef.current) {
+                    addPeer(signal, callerId, localStreamRef.current);
+                } else {
+                    console.error('[SIGNALING ERROR] Local stream not available to process incoming signal.');
+                }
+            }
+        };
+        
+        console.log('[SOCKET LISTENERS] Attaching socket listeners.');
         socket.on('room-info', (info) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'room-info'`, info);
@@ -212,22 +240,7 @@ const VideoRoom = () => {
             }
         });
 
-        socket.on('user-joined', ({ userId, userName }) => {
-            if (isMounted && userId !== authUser._id) {
-                console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId}).`);
-                toast.success(`${userName} joined the room`);
-                setParticipants(prev => [...prev, { userId, userName }]);
-                
-                console.log(`[USER JOINED] Current localStream state:`, localStream);
-                if (localStream) {
-                    console.log(`[USER JOINED] Local stream is available. Creating peer for ${userName}.`);
-                    createPeer(userId, localStream, true);
-                } else {
-                    console.warn(`[WARNING] Local stream not available yet. Will create peer when it is.`);
-                }
-            }
-        });
-
+        socket.on('user-joined', handleUserJoined);
         socket.on('user-left', ({ userId, userName }) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'user-left' from ${userName} (${userId}).`);
@@ -245,18 +258,7 @@ const VideoRoom = () => {
             }
         });
 
-        socket.on('receiving-signal', ({ signal, callerId }) => {
-            if (isMounted) {
-                console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}.`);
-                console.log(`[RECEIVING SIGNAL] Current localStream state:`, localStream);
-                if (localStream) {
-                    addPeer(signal, callerId, localStream);
-                } else {
-                    console.error('[SIGNALING ERROR] Local stream not available to process incoming signal.');
-                }
-            }
-        });
-
+        socket.on('receiving-signal', handleReceivingSignal);
         socket.on('returning-signal', ({ signal, callerId }) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'returning-signal' from ${callerId}.`);
@@ -282,13 +284,21 @@ const VideoRoom = () => {
             isMounted = false;
             console.log('[CLEANUP] Removing socket listeners.');
             socket.off('room-info');
-            socket.off('user-joined');
+            socket.off('user-joined', handleUserJoined);
             socket.off('user-left');
-            socket.off('receiving-signal');
+            socket.off('receiving-signal', handleReceivingSignal);
             socket.off('returning-signal');
             socket.off('room-closed');
         };
-    }, [socket, authUser, localStream, navigate, roomId, endCall, addPeer, createPeer]);
+    }, [socket, authUser, navigate, endCall, addPeer, createPeer]);
+    
+    // This useEffect is for handling local video element attachment.
+    useEffect(() => {
+        if (localStream && localVideoRef.current) {
+            console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
+            localVideoRef.current.srcObject = localStream;
+        }
+    }, [localStream]);
 
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">
@@ -381,7 +391,7 @@ const VideoRoom = () => {
                     <FaPhoneSlash />
                 </button>
             </div>
-            <dialog id="participants-modal" className="modal bg-gray-900 bg-opacity-50 p-4 rounded-lg">
+            <div id="participants-modal" className="modal bg-gray-900 bg-opacity-50 p-4 rounded-lg">
                 <div className="modal-box bg-gray-800 p-6 rounded-lg w-full max-w-md">
                     <h3 className="font-bold text-lg mb-4">Participants ({participants.length})</h3>
                     <ul className="max-h-60 overflow-auto">
@@ -408,7 +418,7 @@ const VideoRoom = () => {
                         </form>
                     </div>
                 </div>
-            </dialog>
+            </div>
         </div>
     );
 };
