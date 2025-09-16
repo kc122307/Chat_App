@@ -25,6 +25,7 @@ const VideoRoom = () => {
     const isWebRTCSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.RTCPeerConnection);
 
     const endCall = useCallback(() => {
+        console.log('[END CALL] Ending call and cleaning up resources.');
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
             setLocalStream(null);
@@ -43,6 +44,7 @@ const VideoRoom = () => {
             if (audioTrack) {
                 audioTrack.enabled = !audioTrack.enabled;
                 setIsAudioEnabled(audioTrack.enabled);
+                console.log(`[TOGGLE AUDIO] Audio is now ${audioTrack.enabled ? 'enabled' : 'disabled'}.`);
             }
         }
     }, [localStream]);
@@ -53,18 +55,19 @@ const VideoRoom = () => {
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 setIsVideoEnabled(videoTrack.enabled);
+                console.log(`[TOGGLE VIDEO] Video is now ${videoTrack.enabled ? 'enabled' : 'disabled'}.`);
             }
         }
     }, [localStream]);
 
     const createPeer = useCallback((userId, stream, isInitiator) => {
-        console.log(`[CREATE PEER] Creating peer for user: ${userId}, Initiator: ${isInitiator}`);
+        console.log(`[CREATE PEER] Attempting to create peer for user: ${userId}, Initiator: ${isInitiator}`);
         
-        // **CRITICAL FIX**: Add a check to ensure the stream is valid before creating the Peer object.
         if (!stream) {
             console.error('[CREATE PEER ERROR] Stream is null or undefined, cannot create peer.');
             return;
         }
+        console.log('[CREATE PEER] Stream is valid, proceeding with peer creation.');
 
         const peer = new Peer({
             initiator: isInitiator,
@@ -85,16 +88,16 @@ const VideoRoom = () => {
         peer.on('signal', signal => {
             console.log(`[SIGNAL] Generated signal for ${userId}:`, signal);
             if (isInitiator) {
+                console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}.`);
                 socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
-                console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}`);
             } else {
+                console.log(`[SIGNALING] Emitting 'returning-signal' to server for user ${userId}.`);
                 socket.emit('returning-signal', { signal, callerId: userId });
-                console.log(`[SIGNALING] Emitting 'returning-signal' to server for user ${userId}`);
             }
         });
 
         peer.on('stream', remoteStream => {
-            console.log(`[STREAM] Received remote stream from user: ${userId}`);
+            console.log(`[STREAM] Received remote stream from user: ${userId}. Attaching to video element.`);
             setRemoteStreams(prevStreams => ({
                 ...prevStreams,
                 [userId]: remoteStream
@@ -102,7 +105,7 @@ const VideoRoom = () => {
         });
 
         peer.on('close', () => {
-            console.log(`[PEER CLOSE] Peer connection closed with user: ${userId}`);
+            console.log(`[PEER CLOSE] Peer connection closed with user: ${userId}.`);
             peer.destroy();
             delete peersRef.current[userId];
             setRemoteStreams(prevStreams => {
@@ -115,12 +118,13 @@ const VideoRoom = () => {
         peer.on('error', err => console.error(`[PEER ERROR] Peer connection error with user ${userId}:`, err));
         
         peersRef.current[userId] = peer;
+        console.log(`[CREATE PEER] Peer object for ${userId} created and stored.`);
         return peer;
     }, [socket, authUser]);
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
         console.log(`[ADD PEER] Adding peer for user: ${callerId}. Processing incoming signal.`);
-        // **CRITICAL FIX**: Add a check to ensure the stream is valid before adding the peer.
+        
         if (!stream) {
             console.error('[ADD PEER ERROR] Stream is null or undefined, cannot add peer.');
             return;
@@ -128,6 +132,7 @@ const VideoRoom = () => {
 
         const peer = createPeer(callerId, stream, false);
         if (peer) {
+            console.log('[ADD PEER] Signaling peer with incoming signal.');
             peer.signal(incomingSignal);
             console.log(`[ADD PEER] Signal processed. Peer connection should start.`);
         }
@@ -135,6 +140,7 @@ const VideoRoom = () => {
 
     useEffect(() => {
         if (localStream && localVideoRef.current) {
+            console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
             localVideoRef.current.srcObject = localStream;
         }
     }, [localStream]);
@@ -152,12 +158,13 @@ const VideoRoom = () => {
 
         socket.on('user-joined', ({ userId, userName }) => {
             if (isMounted && userId !== authUser._id) {
-                console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId})`);
+                console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId}).`);
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
                 
-                // **CRITICAL FIX**: Only create a peer if the local stream is available.
+                console.log(`[USER JOINED] Current localStream state:`, localStream);
                 if (localStream) {
+                    console.log(`[USER JOINED] Local stream is available. Creating peer for ${userName}.`);
                     createPeer(userId, localStream, true);
                 } else {
                     console.warn(`[WARNING] Local stream not available yet. Will create peer when it is.`);
@@ -167,7 +174,7 @@ const VideoRoom = () => {
 
         socket.on('user-left', ({ userId, userName }) => {
             if (isMounted) {
-                console.log(`[SOCKET] Received 'user-left' from ${userName} (${userId})`);
+                console.log(`[SOCKET] Received 'user-left' from ${userName} (${userId}).`);
                 toast.error(`${userName} left the room`);
                 setParticipants(prev => prev.filter(p => p.userId !== userId));
                 if (peersRef.current[userId]) {
@@ -184,9 +191,8 @@ const VideoRoom = () => {
 
         socket.on('receiving-signal', ({ signal, callerId }) => {
             if (isMounted) {
-                console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}`);
-                
-                // **CRITICAL FIX**: Only add a peer if the local stream is available.
+                console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}.`);
+                console.log(`[RECEIVING SIGNAL] Current localStream state:`, localStream);
                 if (localStream) {
                     addPeer(signal, callerId, localStream);
                 } else {
@@ -197,18 +203,20 @@ const VideoRoom = () => {
 
         socket.on('returning-signal', ({ signal, callerId }) => {
             if (isMounted) {
-                console.log(`[SOCKET] Received 'returning-signal' from ${callerId}`);
+                console.log(`[SOCKET] Received 'returning-signal' from ${callerId}.`);
                 const peer = peersRef.current[callerId];
                 if (peer) {
+                    console.log(`[RETURNING SIGNAL] Signaling peer for ${callerId}.`);
                     peer.signal(signal);
-                    console.log(`[PEER] Signaled peer for ${callerId}`);
+                } else {
+                    console.error(`[RETURNING SIGNAL ERROR] Peer not found for caller ${callerId}.`);
                 }
             }
         });
 
         socket.on('room-closed', () => {
             if (isMounted) {
-                console.log('[SOCKET] Received "room-closed" event');
+                console.log('[SOCKET] Received "room-closed" event. Room is closing.');
                 toast.error('The room has been closed by the host');
                 endCall();
             }
@@ -222,6 +230,7 @@ const VideoRoom = () => {
             socket.off('receiving-signal');
             socket.off('returning-signal');
             socket.off('room-closed');
+            console.log('[CLEANUP] Socket listeners turned off.');
         };
     }, [isWebRTCSupported, authUser, socket, roomId, navigate, endCall, addPeer, createPeer, localStream]);
 
@@ -237,12 +246,12 @@ const VideoRoom = () => {
                 }
 
                 if (isMounted) {
+                    console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}.`);
                     socket.emit('join-room', {
                         roomId: roomId,
                         userId: authUser._id,
                         userName: authUser.fullName
                     });
-                    console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}`);
                 }
             } catch (error) {
                 console.error('[MEDIA ERROR] Error accessing media devices:', error);
@@ -267,7 +276,7 @@ const VideoRoom = () => {
             Object.values(peersRef.current).forEach(peer => peer.destroy());
             peersRef.current = {};
             setRemoteStreams({});
-            console.log('[CLEANUP] Disconnecting from room and destroying peers.');
+            console.log('[CLEANUP] Disconnecting from room and destroying all peers.');
         };
     }, [authUser, navigate, roomId, socket]);
 
