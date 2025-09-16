@@ -21,50 +21,45 @@ const VideoRoom = () => {
     
     const peersRef = useRef({});
     const localVideoRef = useRef();
+    const localStreamRef = useRef(null); // Ref to hold the current stream
 
     const isWebRTCSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.RTCPeerConnection);
 
     const endCall = useCallback(() => {
         console.log('[END CALL] Ending call and cleaning up resources.');
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-            setLocalStream(null);
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => track.stop());
         }
+        setLocalStream(null);
         Object.values(peersRef.current).forEach(peer => peer.destroy());
         peersRef.current = {};
         setRemoteStreams({});
         socket?.emit('leave-room', { roomId, userId: authUser._id });
         navigate('/');
         toast.error('You left the room.');
-    }, [localStream, navigate, socket, roomId, authUser]);
+    }, [navigate, socket, roomId, authUser]);
 
     const toggleAudio = useCallback(() => {
-        if (localStream) {
-            const audioTrack = localStream.getAudioTracks()[0];
+        if (localStreamRef.current) {
+            const audioTrack = localStreamRef.current.getAudioTracks()[0];
             if (audioTrack) {
                 audioTrack.enabled = !audioTrack.enabled;
                 setIsAudioEnabled(audioTrack.enabled);
                 console.log(`[TOGGLE AUDIO] Audio is now ${audioTrack.enabled ? 'enabled' : 'disabled'}.`);
             }
         }
-    }, [localStream]);
+    }, []);
 
     const toggleVideo = useCallback(() => {
-        if (localStream) {
-            const videoTrack = localStream.getVideoTracks()[0];
+        if (localStreamRef.current) {
+            const videoTrack = localStreamRef.current.getVideoTracks()[0];
             if (videoTrack) {
                 videoTrack.enabled = !videoTrack.enabled;
                 setIsVideoEnabled(videoTrack.enabled);
                 console.log(`[TOGGLE VIDEO] Video is now ${videoTrack.enabled ? 'enabled' : 'disabled'}.`);
             }
         }
-    }, [localStream]);
-
-    // Use a ref to hold the latest local stream to avoid stale closures in event handlers.
-    const localStreamRef = useRef(localStream);
-    useEffect(() => {
-        localStreamRef.current = localStream;
-    }, [localStream]);
+    }, []);
 
     const createPeer = useCallback((userId, stream, isInitiator) => {
         console.log(`[CREATE PEER] Attempting to create peer for user: ${userId}, Initiator: ${isInitiator}`);
@@ -144,8 +139,7 @@ const VideoRoom = () => {
         }
     }, [createPeer]);
 
-    // This useEffect is for getting the local stream and joining the room.
-    // It runs only once on mount.
+    // Use a single useEffect hook to handle all side effects
     useEffect(() => {
         let isMounted = true;
         
@@ -155,8 +149,13 @@ const VideoRoom = () => {
                 if (isMounted) {
                     console.log('[MEDIA] Local stream obtained successfully.');
                     setLocalStream(stream);
+                    localStreamRef.current = stream; // Update ref immediately
+                    if (localVideoRef.current) {
+                        localVideoRef.current.srcObject = stream;
+                        console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
+                    }
                 }
-
+                
                 if (isMounted) {
                     console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}.`);
                     socket.emit('join-room', {
@@ -178,31 +177,14 @@ const VideoRoom = () => {
             }
         };
 
-        if (isWebRTCSupported) {
+        if (isWebRTCSupported && socket && authUser) {
             getLocalStreamAndJoinRoom();
-        } else {
+        } else if (!isWebRTCSupported) {
             console.error('[ERROR] WebRTC is not supported in this browser.');
         }
 
-        return () => {
-            isMounted = false;
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => track.stop());
-            }
-            Object.values(peersRef.current).forEach(peer => peer.destroy());
-            peersRef.current = {};
-            setRemoteStreams({});
-            console.log('[CLEANUP] Disconnecting from room and destroying all peers.');
-        };
-    }, [authUser, navigate, roomId, socket, isWebRTCSupported]);
-
-    // This useEffect is for handling all socket listeners.
-    // It runs when the socket is available and when localStream is updated.
-    useEffect(() => {
-        if (!socket) return;
-        
-        let isMounted = true;
-        
+        // Socket listeners
+        console.log('[SOCKET LISTENERS] Attaching socket listeners.');
         const handleUserJoined = ({ userId, userName }) => {
             if (isMounted && userId !== authUser._id) {
                 console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId}).`);
@@ -218,7 +200,6 @@ const VideoRoom = () => {
                 }
             }
         };
-
         const handleReceivingSignal = ({ signal, callerId }) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}.`);
@@ -230,18 +211,16 @@ const VideoRoom = () => {
                 }
             }
         };
-        
-        console.log('[SOCKET LISTENERS] Attaching socket listeners.');
-        socket.on('room-info', (info) => {
+
+        socket?.on('room-info', (info) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'room-info'`, info);
                 setRoomInfo(info);
                 setParticipants(info.participants);
             }
         });
-
-        socket.on('user-joined', handleUserJoined);
-        socket.on('user-left', ({ userId, userName }) => {
+        socket?.on('user-joined', handleUserJoined);
+        socket?.on('user-left', ({ userId, userName }) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'user-left' from ${userName} (${userId}).`);
                 toast.error(`${userName} left the room`);
@@ -257,9 +236,8 @@ const VideoRoom = () => {
                 }
             }
         });
-
-        socket.on('receiving-signal', handleReceivingSignal);
-        socket.on('returning-signal', ({ signal, callerId }) => {
+        socket?.on('receiving-signal', handleReceivingSignal);
+        socket?.on('returning-signal', ({ signal, callerId }) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'returning-signal' from ${callerId}.`);
                 const peer = peersRef.current[callerId];
@@ -271,8 +249,7 @@ const VideoRoom = () => {
                 }
             }
         });
-
-        socket.on('room-closed', () => {
+        socket?.on('room-closed', () => {
             if (isMounted) {
                 console.log('[SOCKET] Received "room-closed" event. Room is closing.');
                 toast.error('The room has been closed by the host');
@@ -280,19 +257,26 @@ const VideoRoom = () => {
             }
         });
 
+        // Cleanup
         return () => {
             isMounted = false;
-            console.log('[CLEANUP] Removing socket listeners.');
-            socket.off('room-info');
-            socket.off('user-joined', handleUserJoined);
-            socket.off('user-left');
-            socket.off('receiving-signal', handleReceivingSignal);
-            socket.off('returning-signal');
-            socket.off('room-closed');
+            console.log('[CLEANUP] Disconnecting from room and destroying all peers.');
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => track.stop());
+            }
+            Object.values(peersRef.current).forEach(peer => peer.destroy());
+            peersRef.current = {};
+            setRemoteStreams({});
+            socket?.off('room-info');
+            socket?.off('user-joined', handleUserJoined);
+            socket?.off('user-left');
+            socket?.off('receiving-signal', handleReceivingSignal);
+            socket?.off('returning-signal');
+            socket?.off('room-closed');
         };
-    }, [socket, authUser, navigate, endCall, addPeer, createPeer]);
-    
-    // This useEffect is for handling local video element attachment.
+    }, [authUser, navigate, roomId, socket, isWebRTCSupported, endCall, addPeer, createPeer]);
+
+    // Handle local video element attachment
     useEffect(() => {
         if (localStream && localVideoRef.current) {
             console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
@@ -391,7 +375,7 @@ const VideoRoom = () => {
                     <FaPhoneSlash />
                 </button>
             </div>
-            <div id="participants-modal" className="modal bg-gray-900 bg-opacity-50 p-4 rounded-lg">
+            <dialog id="participants-modal" className="modal bg-gray-900 bg-opacity-50 p-4 rounded-lg">
                 <div className="modal-box bg-gray-800 p-6 rounded-lg w-full max-w-md">
                     <h3 className="font-bold text-lg mb-4">Participants ({participants.length})</h3>
                     <ul className="max-h-60 overflow-auto">
@@ -418,7 +402,7 @@ const VideoRoom = () => {
                         </form>
                     </div>
                 </div>
-            </div>
+            </dialog>
         </div>
     );
 };
