@@ -37,7 +37,6 @@ io.on("connection", (socket) => {
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-    // Handle individual call invitation
     socket.on("call-user", ({ userToCall, signal, callType }) => {
         const receiverSocketId = userSocketMap[userToCall];
         if (receiverSocketId) {
@@ -54,7 +53,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Handle call acceptance
     socket.on("call-accepted", ({ to, signal }) => {
         const callerSocketId = userSocketMap[to];
         if (callerSocketId) {
@@ -65,7 +63,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Handle call rejection
     socket.on("call-rejected", ({ to }) => {
         const receiverSocketId = userSocketMap[to];
         if (receiverSocketId) {
@@ -73,7 +70,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Handle end call
     socket.on("end-call", ({ to, isGroup }) => {
         if (isGroup) {
             if (rooms[to]) {
@@ -88,7 +84,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Video Room Functionality
     function generateRoomCode() {
         const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         let code = "";
@@ -135,6 +130,15 @@ io.on("connection", (socket) => {
             return;
         }
 
+        // ENFORCE 2-USER LIMIT
+        if (videoRooms[roomId].participants.length >= 2) {
+            console.log(`User ${userName} attempted to join room ${roomId}, but it is full.`);
+            io.to(socket.id).emit("room-join-error", {
+                error: "Room is full. Cannot join.",
+            });
+            return;
+        }
+
         const isUserAlreadyInRoom = videoRooms[roomId].participants.some(p => p.userId === userId);
         
         if (!isUserAlreadyInRoom) {
@@ -172,7 +176,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // Corrected signaling events
     socket.on("sending-signal", ({ userToSignal, signal, callerId }) => {
         const roomId = roomUserSocketMap[userToSignal];
         if (roomId && videoRooms[roomId]) {

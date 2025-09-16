@@ -59,8 +59,6 @@ const VideoRoom = () => {
 
     const createPeer = useCallback((userId, stream, isInitiator) => {
         console.log(`[CREATE PEER] Creating peer for user: ${userId}, Initiator: ${isInitiator}`);
-        
-        // **CRITICAL FIX**: Add a check to ensure the stream is valid before creating the Peer object.
         if (!stream) {
             console.error('[CREATE PEER ERROR] Stream is null or undefined, cannot create peer.');
             return;
@@ -120,7 +118,6 @@ const VideoRoom = () => {
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
         console.log(`[ADD PEER] Adding peer for user: ${callerId}. Processing incoming signal.`);
-        // **CRITICAL FIX**: Add a check to ensure the stream is valid before adding the peer.
         if (!stream) {
             console.error('[ADD PEER ERROR] Stream is null or undefined, cannot add peer.');
             return;
@@ -152,11 +149,19 @@ const VideoRoom = () => {
 
         socket.on('user-joined', ({ userId, userName }) => {
             if (isMounted && userId !== authUser._id) {
+                // Check if the room is already full (2 participants)
+                if (participants.length >= 2) {
+                    toast.error(`The room is full. You cannot join.`);
+                    console.warn(`[SOCKET] User ${userName} (${userId}) attempted to join, but room is full.`);
+                    // We can also emit a message to the server to handle this user,
+                    // but the primary logic is to prevent peer creation here.
+                    return;
+                }
+                
                 console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId})`);
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
                 
-                // **CRITICAL FIX**: Only create a peer if the local stream is available.
                 if (localStream) {
                     createPeer(userId, localStream, true);
                 } else {
@@ -184,9 +189,14 @@ const VideoRoom = () => {
 
         socket.on('receiving-signal', ({ signal, callerId }) => {
             if (isMounted) {
+                // Before processing the signal, check if the room is full.
+                // This handles the case where a user already in the room is sending a signal.
+                if (participants.length >= 2) {
+                    console.warn(`[SIGNALING] Ignoring incoming signal from ${callerId} as room is full.`);
+                    return;
+                }
+
                 console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}`);
-                
-                // **CRITICAL FIX**: Only add a peer if the local stream is available.
                 if (localStream) {
                     addPeer(signal, callerId, localStream);
                 } else {
@@ -223,7 +233,7 @@ const VideoRoom = () => {
             socket.off('returning-signal');
             socket.off('room-closed');
         };
-    }, [isWebRTCSupported, authUser, socket, roomId, navigate, endCall, addPeer, createPeer, localStream]);
+    }, [isWebRTCSupported, authUser, socket, roomId, navigate, endCall, addPeer, createPeer, localStream, participants.length]);
 
     useEffect(() => {
         let isMounted = true;
