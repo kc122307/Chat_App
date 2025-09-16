@@ -77,7 +77,18 @@ const VideoRoom = () => {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
+                    { urls: 'stun:global.stun.twilio.com:3478' },
+                    // **CRITICAL FIX**: Add the free TURN server here
+                    {
+                        urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayprojectsecret'
+                    },
+                    {
+                        urls: 'turn:staticauth.openrelay.metered.ca:80?transport=udp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayprojectsecret'
+                    }
                 ]
             }
         });
