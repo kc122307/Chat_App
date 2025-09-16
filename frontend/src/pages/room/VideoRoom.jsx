@@ -305,7 +305,7 @@ const VideoRoom = () => {
                             onClick={() => navigator.clipboard.writeText(roomId).then(() => toast.success('Room code copied!'))}
                             className="ml-2 text-gray-400 hover:text-white"
                         >
-                            FaCopy
+                            <FaCopy />
                         </button>
                     </div>
                 </div>
