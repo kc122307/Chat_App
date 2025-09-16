@@ -21,7 +21,7 @@ const VideoRoom = () => {
     
     const peersRef = useRef({});
     const localVideoRef = useRef();
-    const localStreamRef = useRef(null);
+    const localStreamRef = useRef(null); // Ref to hold the current stream
 
     const isWebRTCSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.RTCPeerConnection);
 
@@ -69,28 +69,27 @@ const VideoRoom = () => {
             return;
         }
         console.log('[CREATE PEER] Stream is valid, proceeding with peer creation.');
-        
-        // This is the critical change to add TURN server
-        const iceServers = [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' },
-            {
-                urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
-                username: 'openrelayproject',
-                credential: 'openrelayprojectsecret'
-            },
-            {
-                urls: 'turn:staticauth.openrelay.metered.ca:80?transport=udp',
-                username: 'openrelayproject',
-                credential: 'openrelayprojectsecret'
-            }
-        ];
 
         const peer = new Peer({
             initiator: isInitiator,
             trickle: false,
             stream,
-            config: { iceServers }
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:global.stun.twilio.com:3478' },
+                    {
+                        urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayprojectsecret'
+                    },
+                    {
+                        urls: 'turn:staticauth.openrelay.metered.ca:80?transport=udp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayprojectsecret'
+                    }
+                ]
+            }
         });
 
         peer.on('connect', () => {
@@ -150,6 +149,7 @@ const VideoRoom = () => {
         }
     }, [createPeer]);
 
+    // Use a single useEffect hook to handle all side effects
     useEffect(() => {
         let isMounted = true;
         
@@ -159,7 +159,7 @@ const VideoRoom = () => {
                 if (isMounted) {
                     console.log('[MEDIA] Local stream obtained successfully.');
                     setLocalStream(stream);
-                    localStreamRef.current = stream;
+                    localStreamRef.current = stream; // Update ref immediately
                     if (localVideoRef.current) {
                         localVideoRef.current.srcObject = stream;
                         console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
@@ -193,6 +193,8 @@ const VideoRoom = () => {
             console.error('[ERROR] WebRTC is not supported in this browser.');
         }
 
+        // Socket listeners
+        console.log('[SOCKET LISTENERS] Attaching socket listeners.');
         const handleUserJoined = ({ userId, userName }) => {
             if (isMounted && userId !== authUser._id) {
                 console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId}).`);
@@ -220,7 +222,6 @@ const VideoRoom = () => {
             }
         };
 
-        console.log('[SOCKET LISTENERS] Attaching socket listeners.');
         socket?.on('room-info', (info) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'room-info'`, info);
@@ -266,6 +267,7 @@ const VideoRoom = () => {
             }
         });
 
+        // Cleanup
         return () => {
             isMounted = false;
             console.log('[CLEANUP] Disconnecting from room and destroying all peers.');
@@ -284,6 +286,7 @@ const VideoRoom = () => {
         };
     }, [authUser, navigate, roomId, socket, isWebRTCSupported, endCall, addPeer, createPeer]);
 
+    // Handle local video element attachment
     useEffect(() => {
         if (localStream && localVideoRef.current) {
             console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
