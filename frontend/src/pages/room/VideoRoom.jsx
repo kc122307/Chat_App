@@ -138,6 +138,58 @@ const VideoRoom = () => {
         }
     }, [createPeer]);
 
+    // Separate useEffect for getting the local stream and joining the room.
+    useEffect(() => {
+        let isMounted = true;
+        
+        const getLocalStreamAndJoinRoom = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                if (isMounted) {
+                    console.log('[MEDIA] Local stream obtained successfully.');
+                    setLocalStream(stream);
+                }
+
+                if (isMounted) {
+                    console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}.`);
+                    socket.emit('join-room', {
+                        roomId: roomId,
+                        userId: authUser._id,
+                        userName: authUser.fullName
+                    });
+                }
+            } catch (error) {
+                console.error('[MEDIA ERROR] Error accessing media devices:', error);
+                if (isMounted) {
+                    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                        toast.error('Permission to access camera and microphone was denied.');
+                    } else {
+                        toast.error('Failed to access media devices.');
+                    }
+                    navigate('/');
+                }
+            }
+        };
+
+        if (isWebRTCSupported) {
+            getLocalStreamAndJoinRoom();
+        } else {
+            console.error('[ERROR] WebRTC is not supported in this browser.');
+        }
+
+        return () => {
+            isMounted = false;
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            Object.values(peersRef.current).forEach(peer => peer.destroy());
+            peersRef.current = {};
+            setRemoteStreams({});
+            console.log('[CLEANUP] Disconnecting from room and destroying all peers.');
+        };
+    }, [authUser, navigate, roomId, socket, isWebRTCSupported]);
+
+    // New useEffect to handle local video element attachment.
     useEffect(() => {
         if (localStream && localVideoRef.current) {
             console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
@@ -145,9 +197,13 @@ const VideoRoom = () => {
         }
     }, [localStream]);
 
+    // New useEffect to handle all socket listeners. This runs once when the socket is available.
     useEffect(() => {
-        let isMounted = true;
+        if (!socket) return;
         
+        let isMounted = true;
+        console.log('[SOCKET LISTENERS] Attaching socket listeners.');
+
         socket.on('room-info', (info) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'room-info'`, info);
@@ -224,61 +280,15 @@ const VideoRoom = () => {
 
         return () => {
             isMounted = false;
+            console.log('[CLEANUP] Removing socket listeners.');
             socket.off('room-info');
             socket.off('user-joined');
             socket.off('user-left');
             socket.off('receiving-signal');
             socket.off('returning-signal');
             socket.off('room-closed');
-            console.log('[CLEANUP] Socket listeners turned off.');
         };
-    }, [isWebRTCSupported, authUser, socket, roomId, navigate, endCall, addPeer, createPeer, localStream]);
-
-    useEffect(() => {
-        let isMounted = true;
-        
-        const getLocalStreamAndJoinRoom = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                if (isMounted) {
-                    console.log('[MEDIA] Local stream obtained successfully.');
-                    setLocalStream(stream);
-                }
-
-                if (isMounted) {
-                    console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}.`);
-                    socket.emit('join-room', {
-                        roomId: roomId,
-                        userId: authUser._id,
-                        userName: authUser.fullName
-                    });
-                }
-            } catch (error) {
-                console.error('[MEDIA ERROR] Error accessing media devices:', error);
-                if (isMounted) {
-                    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-                        toast.error('Permission to access camera and microphone was denied.');
-                    } else {
-                        toast.error('Failed to access media devices.');
-                    }
-                    navigate('/');
-                }
-            }
-        };
-
-        getLocalStreamAndJoinRoom();
-
-        return () => {
-            isMounted = false;
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            Object.values(peersRef.current).forEach(peer => peer.destroy());
-            peersRef.current = {};
-            setRemoteStreams({});
-            console.log('[CLEANUP] Disconnecting from room and destroying all peers.');
-        };
-    }, [authUser, navigate, roomId, socket]);
+    }, [socket, authUser, localStream, navigate, roomId, endCall, addPeer, createPeer]);
 
     return (
         <div className="relative flex flex-col h-screen bg-gray-900 text-white">
