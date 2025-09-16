@@ -60,7 +60,7 @@ const VideoRoom = () => {
     const createPeer = useCallback((userId, stream, isInitiator) => {
         console.log(`[CREATE PEER] Creating peer for user: ${userId}, Initiator: ${isInitiator}`);
         
-        // This check is the primary fix for the TypeError
+        // CRITICAL FIX: Add a check to ensure the stream is valid before creating the Peer object.
         if (!stream) {
             console.error('[CREATE PEER ERROR] Stream is null or undefined, cannot create peer.');
             return;
@@ -120,13 +120,12 @@ const VideoRoom = () => {
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
         console.log(`[ADD PEER] Adding peer for user: ${callerId}. Processing incoming signal.`);
-        
-        // This check is the primary fix for the TypeError
+        // CRITICAL FIX: Add a check to ensure the stream is valid before adding the peer.
         if (!stream) {
             console.error('[ADD PEER ERROR] Stream is null or undefined, cannot add peer.');
             return;
         }
-        
+
         const peer = createPeer(callerId, stream, false);
         if (peer) {
             peer.signal(incomingSignal);
@@ -157,7 +156,7 @@ const VideoRoom = () => {
                 toast.success(`${userName} joined the room`);
                 setParticipants(prev => [...prev, { userId, userName }]);
                 
-                // CRITICAL FIX: Ensure localStream is available before creating a peer
+                // CRITICAL FIX: Only create a peer if the local stream is available.
                 if (localStream) {
                     createPeer(userId, localStream, true);
                 } else {
@@ -187,7 +186,7 @@ const VideoRoom = () => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}`);
                 
-                // CRITICAL FIX: Ensure localStream is available before adding a peer
+                // CRITICAL FIX: Only add a peer if the local stream is available.
                 if (localStream) {
                     addPeer(signal, callerId, localStream);
                 } else {
