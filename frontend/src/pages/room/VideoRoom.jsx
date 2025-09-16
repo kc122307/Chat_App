@@ -69,27 +69,28 @@ const VideoRoom = () => {
             return;
         }
         console.log('[CREATE PEER] Stream is valid, proceeding with peer creation.');
+        
+        // This is the critical change to add TURN server
+        const iceServers = [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            {
+                urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayprojectsecret'
+            },
+            {
+                urls: 'turn:staticauth.openrelay.metered.ca:80?transport=udp',
+                username: 'openrelayproject',
+                credential: 'openrelayprojectsecret'
+            }
+        ];
 
         const peer = new Peer({
             initiator: isInitiator,
             trickle: false,
             stream,
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' },
-                    {
-                        urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayprojectsecret'
-                    },
-                    {
-                        urls: 'turn:staticauth.openrelay.metered.ca:80?transport=udp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayprojectsecret'
-                    }
-                ]
-            }
+            config: { iceServers }
         });
 
         peer.on('connect', () => {
