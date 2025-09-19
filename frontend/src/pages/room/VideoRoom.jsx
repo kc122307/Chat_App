@@ -243,29 +243,61 @@ const VideoRoom = () => {
     }, [socket, authUser]);
 
     const addPeer = useCallback((incomingSignal, callerId, stream) => {
-        console.log(`[ADD PEER] Adding peer for user: ${callerId}. Processing incoming signal.`);
+        console.log(`[ADD PEER] 🚀 Adding peer for user: ${callerId}. Processing incoming signal.`);
+        console.log(`[ADD PEER] 📡 Signal details:`, {
+            type: incomingSignal?.type,
+            sdpLength: incomingSignal?.sdp?.length,
+            callerId
+        });
+        console.log(`[ADD PEER] 📹 Stream details:`, {
+            exists: !!stream,
+            active: stream?.active,
+            videoTracks: stream?.getVideoTracks().length,
+            audioTracks: stream?.getAudioTracks().length
+        });
         
         if (!stream) {
-            console.error('[ADD PEER ERROR] Stream is null or undefined, cannot add peer.');
+            console.error('[ADD PEER ERROR] ❌ Stream is null or undefined, cannot add peer.');
+            console.error('[ADD PEER ERROR] 🔍 Provided stream:', stream);
             return;
         }
         
         if (!incomingSignal) {
-            console.error('[ADD PEER ERROR] Incoming signal is null or undefined.');
+            console.error('[ADD PEER ERROR] ❌ Incoming signal is null or undefined.');
+            console.error('[ADD PEER ERROR] 🔍 Provided signal:', incomingSignal);
             return;
         }
+
+        console.log(`[ADD PEER] 📅 Current peers before creation:`, Object.keys(peersRef.current));
+        console.log(`[ADD PEER] 👤 Creating peer for ${callerId} as NON-INITIATOR`);
 
         try {
             const peer = createPeer(callerId, stream, false);
             if (peer) {
-                console.log('[ADD PEER] Signaling peer with incoming signal.');
+                console.log('[ADD PEER] ✅ Peer created successfully! Signaling with incoming signal.');
+                console.log('[ADD PEER] 📝 Peer state before signaling:', {
+                    initiator: peer.initiator,
+                    connectionState: peer._pc?.connectionState,
+                    signalingState: peer._pc?.signalingState
+                });
+                
                 peer.signal(incomingSignal);
-                console.log(`[ADD PEER] Signal processed. Peer connection should start.`);
+                console.log(`[ADD PEER] ✅ Signal sent to peer! Peer connection handshake should start.`);
+                
+                // Check peer state after signaling
+                setTimeout(() => {
+                    console.log('[ADD PEER] 🔍 Peer state 1 second after signaling:', {
+                        connectionState: peer._pc?.connectionState,
+                        signalingState: peer._pc?.signalingState,
+                        iceConnectionState: peer._pc?.iceConnectionState
+                    });
+                }, 1000);
             } else {
-                console.error('[ADD PEER ERROR] Failed to create peer.');
+                console.error('[ADD PEER ERROR] ❌ Failed to create peer - createPeer returned null/undefined.');
             }
         } catch (error) {
-            console.error('[ADD PEER ERROR] Failed to add peer:', error);
+            console.error('[ADD PEER ERROR] ❌ Exception during addPeer:', error);
+            console.error('[ADD PEER ERROR] 🔍 Error stack:', error.stack);
         }
     }, [createPeer]);
 
@@ -391,9 +423,12 @@ const VideoRoom = () => {
         };
         const handleReceivingSignal = ({ signal, callerId }) => {
             if (isMounted) {
-                console.log(`[SOCKET] ✅ Received 'receiving-signal' from ${callerId}`);
+                console.log(`[SOCKET] ✅ 🏠 RECEIVING-SIGNAL EVENT RECEIVED!`);
+                console.log(`[RECEIVING SIGNAL] 📡 From caller: ${callerId}`);
                 console.log(`[RECEIVING SIGNAL] 📡 Signal type:`, signal?.type || 'unknown');
-                console.log(`[RECEIVING SIGNAL] 🎬 Current authUser:`, authUser._id);
+                console.log(`[RECEIVING SIGNAL] 📡 Signal SDP length:`, signal?.sdp?.length || 'no SDP');
+                console.log(`[RECEIVING SIGNAL] 👤 Current authUser:`, authUser._id);
+                console.log(`[RECEIVING SIGNAL] 📅 Current peers:`, Object.keys(peersRef.current));
                 console.log(`[RECEIVING SIGNAL] 📹 Local stream state:`, {
                     exists: !!localStreamRef.current,
                     active: localStreamRef.current?.active,
@@ -402,11 +437,20 @@ const VideoRoom = () => {
                 });
                 
                 if (localStreamRef.current) {
-                    console.log(`[RECEIVING SIGNAL] 🚀 Creating peer for ${callerId}`);
+                    console.log(`[RECEIVING SIGNAL] 🚀 Creating peer for ${callerId} with local stream`);
+                    console.log(`[RECEIVING SIGNAL] 📝 About to call addPeer with:`, {
+                        callerId,
+                        signalType: signal?.type,
+                        streamActive: localStreamRef.current?.active
+                    });
                     addPeer(signal, callerId, localStreamRef.current);
                 } else {
                     console.error('[SIGNALING ERROR] ❌ Local stream not available to process incoming signal.');
+                    console.error('[SIGNALING ERROR] 🔍 LocalStreamRef.current:', localStreamRef.current);
+                    console.error('[SIGNALING ERROR] 🔍 LocalStream state:', localStream);
+                    
                     // Try to wait a bit and retry
+                    console.log('[SIGNALING ERROR] 🔄 Retrying in 1 second...');
                     setTimeout(() => {
                         if (localStreamRef.current) {
                             console.log(`[RECEIVING SIGNAL] 🔄 Retrying with delayed stream for ${callerId}`);
@@ -416,6 +460,8 @@ const VideoRoom = () => {
                         }
                     }, 1000);
                 }
+            } else {
+                console.warn('[RECEIVING SIGNAL] ⚠️ Component not mounted, ignoring receiving-signal');
             }
         };
 
