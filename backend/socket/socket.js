@@ -173,17 +173,18 @@ io.on("connection", (socket) => {
 
         console.log(`📅 Current participants in room ${roomId}:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
         
-        // ENFORCE 2-USER LIMIT
-        if (videoRooms[roomId].participants.length >= 2) {
+        // CHECK IF USER IS ALREADY IN ROOM FIRST
+        const isUserAlreadyInRoom = videoRooms[roomId].participants.some(p => p.userId === userId);
+        console.log(`🔍 User already in room:`, isUserAlreadyInRoom);
+        
+        // ENFORCE 2-USER LIMIT (but only for NEW users, not existing ones)
+        if (!isUserAlreadyInRoom && videoRooms[roomId].participants.length >= 2) {
             console.log(`❌ User ${userName} attempted to join room ${roomId}, but it is full.`);
             io.to(socket.id).emit("room-join-error", {
                 error: "Room is full. Cannot join.",
             });
             return;
         }
-
-        const isUserAlreadyInRoom = videoRooms[roomId].participants.some(p => p.userId === userId);
-        console.log(`🔍 User already in room:`, isUserAlreadyInRoom);
         
         if (!isUserAlreadyInRoom) {
             const participant = { userId, userName, socketId: socket.id };
