@@ -66,83 +66,117 @@ const VideoRoom = () => {
         
         if (!stream) {
             console.error('[CREATE PEER ERROR] Stream is null or undefined, cannot create peer.');
-            return;
+            return null;
         }
+        
+        // Check WebRTC support
+        if (!window.RTCPeerConnection) {
+            console.error('[CREATE PEER ERROR] WebRTC not supported in this browser');
+            toast.error('WebRTC not supported in this browser');
+            return null;
+        }
+        
         console.log('[CREATE PEER] Stream is valid, proceeding with peer creation.');
 
-        const peer = new Peer({
-            initiator: isInitiator,
-            trickle: false,
-            stream,
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' },
-                    {
-                        urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayprojectsecret'
-                    },
-                    {
-                        urls: 'turn:staticauth.openrelay.metered.ca:80?transport=udp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayprojectsecret'
-                    }
-                ]
-            }
-        });
+        let peer;
+        try {
+            peer = new Peer({
+                initiator: isInitiator,
+                trickle: false,
+                stream,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' },
+                        {
+                            urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+                            username: 'openrelayproject',
+                            credential: 'openrelayprojectsecret'
+                        },
+                        {
+                            urls: 'turn:staticauth.openrelay.metered.ca:80?transport=udp',
+                            username: 'openrelayproject',
+                            credential: 'openrelayprojectsecret'
+                        }
+                    ]
+                }
+            });
+        } catch (error) {
+            console.error('[CREATE PEER ERROR] Failed to create peer:', error);
+            toast.error('Failed to create peer connection');
+            return null;
+        }
 
         peer.on('connect', () => {
             console.log(`[PEER CONNECTED] Peer connection established with ${userId}`);
         });
 
         peer.on('signal', signal => {
-            console.log(`[SIGNAL] Generated signal for ${userId}:`, signal);
-            if (isInitiator) {
-                console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}.`);
-                socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
-            } else {
-                console.log(`[SIGNALING] Emitting 'returning-signal' to server - signal from ${authUser._id} to ${userId}.`);
-                socket.emit('returning-signal', { signal, callerId: authUser._id });
+            try {
+                console.log(`[SIGNAL] Generated signal for ${userId}:`, signal);
+                if (!socket || !socket.connected) {
+                    console.error('[SIGNAL ERROR] Socket not connected');
+                    return;
+                }
+                
+                if (isInitiator) {
+                    console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}.`);
+                    socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
+                } else {
+                    console.log(`[SIGNALING] Emitting 'returning-signal' to server - signal from ${authUser._id} to ${userId}.`);
+                    socket.emit('returning-signal', { signal, callerId: authUser._id });
+                }
+            } catch (error) {
+                console.error('[SIGNAL ERROR] Failed to handle signal:', error);
             }
         });
 
         peer.on('stream', remoteStream => {
-            console.log(`[STREAM] Received remote stream from user: ${userId}`);
-            console.log(`[STREAM] Remote stream details:`, {
-                id: remoteStream.id,
-                active: remoteStream.active,
-                videoTracks: remoteStream.getVideoTracks().length,
-                audioTracks: remoteStream.getAudioTracks().length
-            });
-            
-            // Check video tracks
-            remoteStream.getVideoTracks().forEach((track, index) => {
-                console.log(`[STREAM] Video track ${index}:`, {
-                    enabled: track.enabled,
-                    readyState: track.readyState,
-                    muted: track.muted
+            try {
+                console.log(`[STREAM] Received remote stream from user: ${userId}`);
+                
+                if (!remoteStream || !remoteStream.active) {
+                    console.error('[STREAM ERROR] Received inactive or null stream');
+                    return;
+                }
+                
+                console.log(`[STREAM] Remote stream details:`, {
+                    id: remoteStream.id,
+                    active: remoteStream.active,
+                    videoTracks: remoteStream.getVideoTracks().length,
+                    audioTracks: remoteStream.getAudioTracks().length
                 });
-            });
-            
-            // Check audio tracks
-            remoteStream.getAudioTracks().forEach((track, index) => {
-                console.log(`[STREAM] Audio track ${index}:`, {
-                    enabled: track.enabled,
-                    readyState: track.readyState,
-                    muted: track.muted
+                
+                // Check video tracks
+                remoteStream.getVideoTracks().forEach((track, index) => {
+                    console.log(`[STREAM] Video track ${index}:`, {
+                        enabled: track.enabled,
+                        readyState: track.readyState,
+                        muted: track.muted
+                    });
                 });
-            });
-            
-            console.log(`[STREAM] Adding remote stream to state for user: ${userId}`);
-            setRemoteStreams(prevStreams => {
-                const newStreams = {
-                    ...prevStreams,
-                    [userId]: remoteStream
-                };
-                console.log(`[STREAM] Updated remote streams:`, Object.keys(newStreams));
-                return newStreams;
-            });
+                
+                // Check audio tracks
+                remoteStream.getAudioTracks().forEach((track, index) => {
+                    console.log(`[STREAM] Audio track ${index}:`, {
+                        enabled: track.enabled,
+                        readyState: track.readyState,
+                        muted: track.muted
+                    });
+                });
+                
+                console.log(`[STREAM] Adding remote stream to state for user: ${userId}`);
+                setRemoteStreams(prevStreams => {
+                    const newStreams = {
+                        ...prevStreams,
+                        [userId]: remoteStream
+                    };
+                    console.log(`[STREAM] Updated remote streams:`, Object.keys(newStreams));
+                    return newStreams;
+                });
+            } catch (error) {
+                console.error('[STREAM ERROR] Failed to handle stream:', error);
+            }
         });
 
         peer.on('close', () => {
@@ -170,12 +204,23 @@ const VideoRoom = () => {
             console.error('[ADD PEER ERROR] Stream is null or undefined, cannot add peer.');
             return;
         }
+        
+        if (!incomingSignal) {
+            console.error('[ADD PEER ERROR] Incoming signal is null or undefined.');
+            return;
+        }
 
-        const peer = createPeer(callerId, stream, false);
-        if (peer) {
-            console.log('[ADD PEER] Signaling peer with incoming signal.');
-            peer.signal(incomingSignal);
-            console.log(`[ADD PEER] Signal processed. Peer connection should start.`);
+        try {
+            const peer = createPeer(callerId, stream, false);
+            if (peer) {
+                console.log('[ADD PEER] Signaling peer with incoming signal.');
+                peer.signal(incomingSignal);
+                console.log(`[ADD PEER] Signal processed. Peer connection should start.`);
+            } else {
+                console.error('[ADD PEER ERROR] Failed to create peer.');
+            }
+        } catch (error) {
+            console.error('[ADD PEER ERROR] Failed to add peer:', error);
         }
     }, [createPeer]);
 

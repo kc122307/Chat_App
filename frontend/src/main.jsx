@@ -7,6 +7,8 @@ import "./index.css";
 import { BrowserRouter } from "react-router-dom";
 import { AuthContextProvider } from "./context/AuthContext.jsx";
 import { SocketContextProvider } from "./context/SocketContext.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import BrowserCheck from "./components/BrowserCheck.jsx";
 import "simple-peer";
 import "zustand";
 import "react-router-dom";
@@ -16,12 +18,16 @@ import 'webrtc-adapter';
 
 ReactDOM.createRoot(document.getElementById("root")).render(
 	<React.StrictMode>
-		<BrowserRouter>
-			<AuthContextProvider>
-				<SocketContextProvider>
-					<App />
-				</SocketContextProvider>
-			</AuthContextProvider>
-		</BrowserRouter>
+		<BrowserCheck>
+			<ErrorBoundary>
+				<BrowserRouter>
+					<AuthContextProvider>
+						<SocketContextProvider>
+							<App />
+						</SocketContextProvider>
+					</AuthContextProvider>
+				</BrowserRouter>
+			</ErrorBoundary>
+		</BrowserCheck>
 	</React.StrictMode>
 );
