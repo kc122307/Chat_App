@@ -141,7 +141,18 @@ io.on("connection", (socket) => {
     });
 
     socket.on("check-video-room", ({ roomId }) => {
+        console.log(`🔍 [BACKEND] Checking room existence for: ${roomId}`);
+        console.log(`📅 [BACKEND] Available rooms:`, Object.keys(videoRooms));
+        
         const roomExists = !!videoRooms[roomId];
+        
+        if (roomExists) {
+            console.log(`✅ [BACKEND] Room ${roomId} exists with ${videoRooms[roomId].participants.length} participants`);
+            console.log(`📅 [BACKEND] Room participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
+        } else {
+            console.log(`❌ [BACKEND] Room ${roomId} does not exist`);
+        }
+        
         io.to(socket.id).emit("video-room-check-result", {
             roomId,
             exists: roomExists,

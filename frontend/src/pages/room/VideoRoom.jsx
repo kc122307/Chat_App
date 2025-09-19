@@ -307,13 +307,74 @@ const VideoRoom = () => {
         
         console.log(`🎬 [VIDEO ROOM] Component mounted for room: ${roomId}`);
         console.log(`🎬 [VIDEO ROOM] Current user: ${authUser?.fullName} (${authUser?._id})`);
+        console.log(`🔗 [VIDEO ROOM] Socket status:`, socket ? 'Available' : 'Not available', socket?.connected ? 'Connected' : 'Not connected');
         
         // Store room info globally for reconnection handling
         window.currentRoomId = roomId;
         window.currentUserId = authUser?._id;
         
+        const checkRoomAndJoin = async () => {
+            if (!socket || !socket.connected) {
+                console.log('[ROOM CHECK] Waiting for socket connection...');
+                // Wait for socket to connect
+                const checkConnection = setInterval(() => {
+                    if (socket && socket.connected && isMounted) {
+                        clearInterval(checkConnection);
+                        checkRoomAndJoin();
+                    }
+                }, 100);
+                
+                // Timeout after 10 seconds
+                setTimeout(() => {
+                    clearInterval(checkConnection);
+                    if (isMounted) {
+                        console.error('[ROOM CHECK] Socket connection timeout');
+                        toast.error('Failed to connect to server');
+                        navigate('/rooms');
+                    }
+                }, 10000);
+                return;
+            }
+            
+            console.log(`[ROOM CHECK] Verifying room existence: ${roomId}`);
+            
+            // First check if room exists
+            socket.emit('check-video-room', { roomId });
+            
+            // Handle room check response
+            const handleRoomCheckResult = ({ roomId: checkedRoomId, exists }) => {
+                console.log(`[ROOM CHECK] Room ${checkedRoomId} exists:`, exists);
+                
+                if (!isMounted) return;
+                
+                socket.off('video-room-check-result', handleRoomCheckResult);
+                
+                if (exists) {
+                    console.log(`[ROOM CHECK] Room exists, proceeding to get media and join`);
+                    getLocalStreamAndJoinRoom();
+                } else {
+                    console.error(`[ROOM CHECK] Room ${roomId} does not exist`);
+                    toast.error(`Room ${roomId} not found. It may have expired or doesn't exist.`);
+                    navigate('/rooms');
+                }
+            };
+            
+            socket.on('video-room-check-result', handleRoomCheckResult);
+            
+            // Timeout for room check
+            setTimeout(() => {
+                if (isMounted) {
+                    socket.off('video-room-check-result', handleRoomCheckResult);
+                    console.error('[ROOM CHECK] Room check timeout');
+                    toast.error('Room check timeout. Please try again.');
+                    navigate('/rooms');
+                }
+            }, 5000);
+        };
+        
         const getLocalStreamAndJoinRoom = async () => {
             try {
+                console.log('[MEDIA] Requesting user media permissions...');
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 if (isMounted) {
                     console.log('[MEDIA] Local stream obtained successfully.');
@@ -348,9 +409,8 @@ const VideoRoom = () => {
                         localVideoRef.current.srcObject = stream;
                         console.log('[VIDEO] Local video stream attached to local video element.');
                     }
-                }
-                
-                if (isMounted) {
+                    
+                    // Now join the room
                     console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}`);
                     console.log(`[JOIN REQUEST] User: ${authUser.fullName} (${authUser._id})`);
                     console.log(`[JOIN REQUEST] Room ID: ${roomId}`);
@@ -371,15 +431,21 @@ const VideoRoom = () => {
                     } else {
                         toast.error('Failed to access media devices.');
                     }
-                    navigate('/');
+                    navigate('/rooms');
                 }
             }
         };
 
-        if (isWebRTCSupported && socket && authUser) {
-            getLocalStreamAndJoinRoom();
+        if (isWebRTCSupported && authUser) {
+            console.log('[VIDEO ROOM] Starting room check and join process...');
+            checkRoomAndJoin();
         } else if (!isWebRTCSupported) {
             console.error('[ERROR] WebRTC is not supported in this browser.');
+            toast.error('WebRTC is not supported in this browser.');
+            navigate('/rooms');
+        } else if (!authUser) {
+            console.error('[ERROR] No authenticated user.');
+            navigate('/login');
         }
 
         // Socket listeners
