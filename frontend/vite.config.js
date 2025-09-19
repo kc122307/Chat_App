@@ -11,8 +11,24 @@ export default defineConfig({
             },
         },
     },
+    // Add the resolve section to alias Node.js core modules
+    resolve: {
+        alias: {
+            'events': 'events',
+            'util': 'util',
+        },
+    },
+    // Update the define section for better compatibility
     define: {
-        global: 'window',
+        global: 'globalThis',
         'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+    },
+    // Add optimizeDeps to handle simple-peer dependencies correctly
+    optimizeDeps: {
+        esbuildOptions: {
+            define: {
+                global: 'globalThis',
+            },
+        },
     },
 });

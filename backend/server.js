@@ -17,10 +17,12 @@ dotenv.config();
 const __dirname = path.resolve();
 const PORT = process.env.PORT || 5000;
 
-const frontendUrl = process.env.CORS_ORIGIN;
+const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:3000";
 const corsOptions = {
-    origin: frontendUrl,
-    credentials: true
+    origin: [frontendUrl, "http://localhost:3000", "http://127.0.0.1:3000"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
 };
 
 app.use(cors(corsOptions));

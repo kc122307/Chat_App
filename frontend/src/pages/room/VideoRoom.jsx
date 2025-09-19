@@ -102,17 +102,47 @@ const VideoRoom = () => {
                 console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}.`);
                 socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
             } else {
-                console.log(`[SIGNALING] Emitting 'returning-signal' to server for user ${userId}.`);
-                socket.emit('returning-signal', { signal, callerId: userId });
+                console.log(`[SIGNALING] Emitting 'returning-signal' to server - signal from ${authUser._id} to ${userId}.`);
+                socket.emit('returning-signal', { signal, callerId: authUser._id });
             }
         });
 
         peer.on('stream', remoteStream => {
-            console.log(`[STREAM] Received remote stream from user: ${userId}. Attaching to video element.`);
-            setRemoteStreams(prevStreams => ({
-                ...prevStreams,
-                [userId]: remoteStream
-            }));
+            console.log(`[STREAM] Received remote stream from user: ${userId}`);
+            console.log(`[STREAM] Remote stream details:`, {
+                id: remoteStream.id,
+                active: remoteStream.active,
+                videoTracks: remoteStream.getVideoTracks().length,
+                audioTracks: remoteStream.getAudioTracks().length
+            });
+            
+            // Check video tracks
+            remoteStream.getVideoTracks().forEach((track, index) => {
+                console.log(`[STREAM] Video track ${index}:`, {
+                    enabled: track.enabled,
+                    readyState: track.readyState,
+                    muted: track.muted
+                });
+            });
+            
+            // Check audio tracks
+            remoteStream.getAudioTracks().forEach((track, index) => {
+                console.log(`[STREAM] Audio track ${index}:`, {
+                    enabled: track.enabled,
+                    readyState: track.readyState,
+                    muted: track.muted
+                });
+            });
+            
+            console.log(`[STREAM] Adding remote stream to state for user: ${userId}`);
+            setRemoteStreams(prevStreams => {
+                const newStreams = {
+                    ...prevStreams,
+                    [userId]: remoteStream
+                };
+                console.log(`[STREAM] Updated remote streams:`, Object.keys(newStreams));
+                return newStreams;
+            });
         });
 
         peer.on('close', () => {
@@ -153,26 +183,59 @@ const VideoRoom = () => {
     useEffect(() => {
         let isMounted = true;
         
+        console.log(`🎬 [VIDEO ROOM] Component mounted for room: ${roomId}`);
+        console.log(`🎬 [VIDEO ROOM] Current user: ${authUser?.fullName} (${authUser?._id})`);
+        
         const getLocalStreamAndJoinRoom = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 if (isMounted) {
                     console.log('[MEDIA] Local stream obtained successfully.');
+                    console.log('[MEDIA] Local stream details:', {
+                        id: stream.id,
+                        active: stream.active,
+                        videoTracks: stream.getVideoTracks().length,
+                        audioTracks: stream.getAudioTracks().length
+                    });
+                    
+                    // Check local video tracks
+                    stream.getVideoTracks().forEach((track, index) => {
+                        console.log(`[MEDIA] Local video track ${index}:`, {
+                            enabled: track.enabled,
+                            readyState: track.readyState,
+                            settings: track.getSettings()
+                        });
+                    });
+                    
+                    // Check local audio tracks
+                    stream.getAudioTracks().forEach((track, index) => {
+                        console.log(`[MEDIA] Local audio track ${index}:`, {
+                            enabled: track.enabled,
+                            readyState: track.readyState,
+                            settings: track.getSettings()
+                        });
+                    });
+                    
                     setLocalStream(stream);
                     localStreamRef.current = stream; // Update ref immediately
                     if (localVideoRef.current) {
                         localVideoRef.current.srcObject = stream;
-                        console.log('[VIDEO] Local video stream is ready. Attaching to local video element.');
+                        console.log('[VIDEO] Local video stream attached to local video element.');
                     }
                 }
                 
                 if (isMounted) {
-                    console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}.`);
+                    console.log(`[SOCKET] Emitting 'join-room' for room: ${roomId}`);
+                    console.log(`[JOIN REQUEST] User: ${authUser.fullName} (${authUser._id})`);
+                    console.log(`[JOIN REQUEST] Room ID: ${roomId}`);
+                    
                     socket.emit('join-room', {
                         roomId: roomId,
                         userId: authUser._id,
                         userName: authUser.fullName
                     });
+                    
+                    console.log(`[SOCKET] join-room event emitted, waiting for response...`);
                 }
             } catch (error) {
                 console.error('[MEDIA ERROR] Error accessing media devices:', error);
@@ -196,10 +259,28 @@ const VideoRoom = () => {
         // Socket listeners
         console.log('[SOCKET LISTENERS] Attaching socket listeners.');
         const handleUserJoined = ({ userId, userName }) => {
+            console.log(`[USER JOINED DEBUG] Received user-joined event:`);
+            console.log(`[USER JOINED DEBUG] - Event userId: ${userId}`);
+            console.log(`[USER JOINED DEBUG] - Event userName: ${userName}`);
+            console.log(`[USER JOINED DEBUG] - Current authUser._id: ${authUser._id}`);
+            console.log(`[USER JOINED DEBUG] - Current authUser.fullName: ${authUser.fullName}`);
+            console.log(`[USER JOINED DEBUG] - Are IDs equal?: ${userId === authUser._id}`);
+            
             if (isMounted && userId !== authUser._id) {
-                console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId}).`);
+                console.log(`[SOCKET] Received 'user-joined' from ${userName} (${userId}) - Processing as new user`);
                 toast.success(`${userName} joined the room`);
-                setParticipants(prev => [...prev, { userId, userName }]);
+                
+                // Check if user is already in participants list to avoid duplicates
+                setParticipants(prev => {
+                    const userExists = prev.some(p => p.userId === userId);
+                    if (!userExists) {
+                        console.log(`[USER JOINED] Adding ${userName} to participants list`);
+                        return [...prev, { userId, userName }];
+                    } else {
+                        console.log(`[USER JOINED] ${userName} already in participants list`);
+                        return prev;
+                    }
+                });
                 
                 console.log(`[USER JOINED] Current localStream ref state:`, localStreamRef.current);
                 if (localStreamRef.current) {
@@ -208,6 +289,10 @@ const VideoRoom = () => {
                 } else {
                     console.warn(`[WARNING] Local stream not available yet. Will create peer when it is.`);
                 }
+            } else if (userId === authUser._id) {
+                console.log(`[USER JOINED] Ignoring self-join event for ${userName} (same user ID)`);
+            } else {
+                console.log(`[USER JOINED] Unknown condition - userId: ${userId}, authUser._id: ${authUser._id}`);
             }
         };
         const handleReceivingSignal = ({ signal, callerId }) => {
@@ -227,6 +312,15 @@ const VideoRoom = () => {
                 console.log(`[SOCKET] Received 'room-info'`, info);
                 setRoomInfo(info);
                 setParticipants(info.participants);
+                console.log(`[ROOM INFO] Updated participants:`, info.participants.map(p => `${p.userName}(${p.userId})`));
+            }
+        });
+        
+        socket?.on('room-join-error', (error) => {
+            if (isMounted) {
+                console.error(`[SOCKET] Room join error:`, error);
+                toast.error(error.error || error.message || 'Failed to join room');
+                navigate('/');
             }
         });
         socket?.on('user-joined', handleUserJoined);
@@ -234,15 +328,26 @@ const VideoRoom = () => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'user-left' from ${userName} (${userId}).`);
                 toast.error(`${userName} left the room`);
-                setParticipants(prev => prev.filter(p => p.userId !== userId));
+                
+                console.log(`[USER LEFT] Removing ${userName} from participants list`);
+                setParticipants(prev => {
+                    const filtered = prev.filter(p => p.userId !== userId);
+                    console.log(`[USER LEFT] Participants after removal:`, filtered.map(p => `${p.userName}(${p.userId})`));
+                    return filtered;
+                });
+                
+                console.log(`[USER LEFT] Cleaning up peer connection for ${userName}`);
                 if (peersRef.current[userId]) {
                     peersRef.current[userId].destroy();
                     delete peersRef.current[userId];
                     setRemoteStreams(prevStreams => {
                         const newStreams = { ...prevStreams };
                         delete newStreams[userId];
+                        console.log(`[USER LEFT] Removed remote stream for ${userName}`);
                         return newStreams;
                     });
+                } else {
+                    console.log(`[USER LEFT] No peer connection found for ${userName}`);
                 }
             }
         });
@@ -250,12 +355,22 @@ const VideoRoom = () => {
         socket?.on('returning-signal', ({ signal, callerId }) => {
             if (isMounted) {
                 console.log(`[SOCKET] Received 'returning-signal' from ${callerId}.`);
+                console.log(`[RETURNING SIGNAL] Current peers:`, Object.keys(peersRef.current));
+                console.log(`[RETURNING SIGNAL] Looking for peer with callerId:`, callerId);
+                
                 const peer = peersRef.current[callerId];
                 if (peer) {
-                    console.log(`[RETURNING SIGNAL] Signaling peer for ${callerId}.`);
+                    console.log(`[RETURNING SIGNAL] Found peer for ${callerId}. Signaling...`);
                     peer.signal(signal);
                 } else {
                     console.error(`[RETURNING SIGNAL ERROR] Peer not found for caller ${callerId}.`);
+                    console.error(`[RETURNING SIGNAL ERROR] Available peers:`, Object.keys(peersRef.current));
+                    // Check if the callerId might be in a different format or if we should look by a different key
+                    const alternativePeer = Object.values(peersRef.current)[0]; // Get first available peer
+                    if (alternativePeer && Object.keys(peersRef.current).length === 1) {
+                        console.log(`[RETURNING SIGNAL] Using alternative peer signaling...`);
+                        alternativePeer.signal(signal);
+                    }
                 }
             }
         });
@@ -278,6 +393,7 @@ const VideoRoom = () => {
             peersRef.current = {};
             setRemoteStreams({});
             socket?.off('room-info');
+            socket?.off('room-join-error');
             socket?.off('user-joined', handleUserJoined);
             socket?.off('user-left');
             socket?.off('receiving-signal', handleReceivingSignal);
@@ -311,7 +427,11 @@ const VideoRoom = () => {
                 </div>
                 <div className="flex items-center">
                     <button 
-                        onClick={() => document.getElementById('participants-modal').showModal()}
+                        onClick={() => {
+                            console.log(`[PARTICIPANTS] Current participants:`, participants.map(p => `${p.userName}(${p.userId})`));
+                            console.log(`[PARTICIPANTS] Participant count:`, participants.length);
+                            document.getElementById('participants-modal').showModal();
+                        }}
                         className="flex items-center bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-lg mr-2"
                     >
                         <FaUsers className="mr-2" />
@@ -333,21 +453,42 @@ const VideoRoom = () => {
             )}
             <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-auto">
                 {Object.entries(remoteStreams).length > 0 ? (
-                    Object.entries(remoteStreams).map(([userId, stream]) => (
-                        <div key={userId} className="relative bg-gray-800 rounded-lg overflow-hidden">
-                            <video
-                                autoPlay
-                                playsInline
-                                className="w-full h-full object-cover"
-                                ref={video => {
-                                    if (video) video.srcObject = stream;
-                                }}
-                            />
-                        </div>
-                    ))
+                    Object.entries(remoteStreams).map(([userId, stream]) => {
+                        console.log(`[RENDER] Rendering video for user ${userId}`);
+                        const participant = participants.find(p => p.userId === userId);
+                        return (
+                            <div key={userId} className="relative bg-gray-800 rounded-lg overflow-hidden">
+                                <video
+                                    autoPlay
+                                    playsInline
+                                    className="w-full h-full object-cover"
+                                    ref={video => {
+                                        if (video && stream) {
+                                            console.log(`[VIDEO] Attaching stream to video element for ${participant?.userName || userId}`);
+                                            video.srcObject = stream;
+                                            video.onloadedmetadata = () => {
+                                                console.log(`[VIDEO] Video metadata loaded for ${participant?.userName || userId}`);
+                                                console.log(`[VIDEO] Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+                                            };
+                                            video.onplay = () => {
+                                                console.log(`[VIDEO] Video started playing for ${participant?.userName || userId}`);
+                                            };
+                                        }
+                                    }}
+                                />
+                                {/* User name overlay */}
+                                <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+                                    {participant?.userName || `User ${userId}`}
+                                </div>
+                            </div>
+                        );
+                    })
                 ) : (
                     <div className="flex items-center justify-center col-span-full h-full">
                         <p className="text-gray-400 text-lg">No one else is present in the room.</p>
+                        <div className="mt-2 text-sm text-gray-500">
+                            Remote streams: {Object.keys(remoteStreams).length} | Participants: {participants.length}
+                        </div>
                     </div>
                 )}
             </div>
