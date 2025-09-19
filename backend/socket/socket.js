@@ -319,21 +319,27 @@ io.on("connection", (socket) => {
     });
 
     socket.on("returning-signal", ({ signal, callerId }) => {
-        console.log(`🔄 [BACKEND] Returning signal from current user (${socket.id}) to original caller ${callerId}`);
+        console.log(`🔄 [BACKEND] Returning signal from user ${callerId}`);
         console.log(`🔄 [BACKEND] Signal type:`, signal?.type || 'unknown');
         
-        // Find current user's ID
+        // Find current user's ID (who is sending the return signal)
         const currentUserId = socketUserMap[socket.id];
         console.log(`👤 [BACKEND] Current user sending return signal: ${currentUserId}`);
+        console.log(`👤 [BACKEND] Return signal is FROM ${currentUserId} TO ${callerId}`);
         
-        // Find the room where the caller is located
-        const roomId = roomUserSocketMap[callerId];
-        console.log(`🏠 [BACKEND] Room for original caller ${callerId}:`, roomId);
-        console.log(`📅 [BACKEND] All room mappings:`, roomUserSocketMap);
+        // Find the room where both users are
+        const currentUserRoom = roomUserSocketMap[currentUserId];
+        const callerRoom = roomUserSocketMap[callerId];
+        
+        console.log(`🏠 [BACKEND] Current user room: ${currentUserRoom}`);
+        console.log(`🏠 [BACKEND] Caller room: ${callerRoom}`);
+        
+        // Use current user's room (should be same as caller's room)
+        const roomId = currentUserRoom;
         
         if (roomId && videoRooms[roomId]) {
-            console.log(`🔍 [BACKEND] Looking for original caller ${callerId} in room ${roomId}`);
-            console.log(`📅 [BACKEND] Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
+            console.log(`🔍 [BACKEND] Looking for ORIGINAL caller ${callerId} in room ${roomId}`);
+            console.log(`📅 [BACKEND] Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId}) - Socket: ${p.socketId}`));
             
             // Find the ORIGINAL caller who should receive the return signal
             const originalCallerSocket = videoRooms[roomId].participants.find(
@@ -341,19 +347,20 @@ io.on("connection", (socket) => {
             );
             
             if (originalCallerSocket) {
-                console.log(`📤 [BACKEND] ✅ Sending returning-signal to original caller ${callerId} at socket ${originalCallerSocket.socketId}`);
+                console.log(`📤 [BACKEND] ✅ Sending returning-signal to ORIGINAL caller ${callerId} at socket ${originalCallerSocket.socketId}`);
+                console.log(`📤 [BACKEND] Signal contains callerId: ${currentUserId} (who is responding)`);
+                
                 io.to(originalCallerSocket.socketId).emit("returning-signal", {
                     signal,
-                    callerId: currentUserId // This is the ID of who is returning the signal (current user)
+                    callerId: currentUserId // This is the ID of who is responding with the signal
                 });
-                console.log(`📤 [BACKEND] ✅ returning-signal event emitted successfully`);
+                console.log(`📤 [BACKEND] ✅ returning-signal event emitted successfully to ${originalCallerSocket.socketId}`);
             } else {
                 console.error(`❌ [BACKEND] Original caller ${callerId} not found for returning signal`);
                 console.log(`📅 [BACKEND] Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
             }
         } else {
-            console.error(`❌ [BACKEND] Room not found for returning signal to ${callerId}`);
-            console.error(`❌ [BACKEND] Room mapping:`, roomUserSocketMap);
+            console.error(`❌ [BACKEND] Room not found. Current user room: ${currentUserRoom}, Caller room: ${callerRoom}`);
             console.error(`❌ [BACKEND] Available rooms:`, Object.keys(videoRooms));
         }
     });
