@@ -9,10 +9,10 @@ const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:3000";
 
 const io = new Server(server, {
     cors: {
-        origin: [frontendUrl, "http://localhost:3000", "http://127.0.0.1:3000"],
+        origin: [frontendUrl, "http://localhost:3000", "http://127.0.0.1:3000", "https://chat-app-nu-peach.vercel.app"],
         methods: ["GET", "POST"],
         credentials: true,
-        allowedHeaders: ["Content-Type", "Authorization"]
+        allowedHeaders: ["Content-Type", "Authorization", "Cookie"]
     },
 });
 
