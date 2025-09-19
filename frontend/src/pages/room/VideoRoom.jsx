@@ -108,24 +108,51 @@ const VideoRoom = () => {
         }
 
         peer.on('connect', () => {
-            console.log(`[PEER CONNECTED] Peer connection established with ${userId}`);
+            console.log(`[PEER CONNECTED] ✅ Peer connection established with ${userId}`);
+            toast.success(`Connected to ${participants.find(p => p.userId === userId)?.userName || userId}`);
+        });
+        
+        peer.on('iceStateChange', (state) => {
+            console.log(`[PEER ICE STATE] ${userId}: ${state}`);
+        });
+        
+        peer.on('connectionStateChange', (state) => {
+            console.log(`[PEER CONNECTION STATE] ${userId}: ${state}`);
+            if (state === 'connected') {
+                console.log(`[PEER CONNECTION] ✅ WebRTC connection established with ${userId}`);
+            } else if (state === 'failed' || state === 'disconnected') {
+                console.error(`[PEER CONNECTION] ❌ Connection ${state} with ${userId}`);
+            }
         });
 
         peer.on('signal', signal => {
             try {
                 console.log(`[SIGNAL] Generated signal for ${userId}:`, signal);
-                if (!socket || !socket.connected) {
-                    console.error('[SIGNAL ERROR] Socket not connected');
-                    return;
-                }
                 
-                if (isInitiator) {
-                    console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}.`);
-                    socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
-                } else {
-                    console.log(`[SIGNALING] Emitting 'returning-signal' to server - signal from ${authUser._id} to ${userId}.`);
-                    socket.emit('returning-signal', { signal, callerId: authUser._id });
-                }
+                const sendSignal = () => {
+                    if (!socket || !socket.connected) {
+                        console.error('[SIGNAL ERROR] Socket not connected, retrying in 2 seconds...');
+                        setTimeout(() => {
+                            if (socket && socket.connected) {
+                                console.log('[SIGNAL RETRY] Socket reconnected, retrying signal...');
+                                sendSignal();
+                            } else {
+                                console.error('[SIGNAL ERROR] Socket still not connected after retry');
+                            }
+                        }, 2000);
+                        return;
+                    }
+                    
+                    if (isInitiator) {
+                        console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}.`);
+                        socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
+                    } else {
+                        console.log(`[SIGNALING] Emitting 'returning-signal' to server - signal from ${authUser._id} to ${userId}.`);
+                        socket.emit('returning-signal', { signal, callerId: authUser._id });
+                    }
+                };
+                
+                sendSignal();
             } catch (error) {
                 console.error('[SIGNAL ERROR] Failed to handle signal:', error);
             }
@@ -230,6 +257,10 @@ const VideoRoom = () => {
         
         console.log(`🎬 [VIDEO ROOM] Component mounted for room: ${roomId}`);
         console.log(`🎬 [VIDEO ROOM] Current user: ${authUser?.fullName} (${authUser?._id})`);
+        
+        // Store room info globally for reconnection handling
+        window.currentRoomId = roomId;
+        window.currentUserId = authUser?._id;
         
         const getLocalStreamAndJoinRoom = async () => {
             try {
@@ -342,12 +373,30 @@ const VideoRoom = () => {
         };
         const handleReceivingSignal = ({ signal, callerId }) => {
             if (isMounted) {
-                console.log(`[SOCKET] Received 'receiving-signal' from ${callerId}.`);
-                console.log(`[RECEIVING SIGNAL] Current localStream ref state:`, localStreamRef.current);
+                console.log(`[SOCKET] ✅ Received 'receiving-signal' from ${callerId}`);
+                console.log(`[RECEIVING SIGNAL] 📡 Signal type:`, signal?.type || 'unknown');
+                console.log(`[RECEIVING SIGNAL] 🎬 Current authUser:`, authUser._id);
+                console.log(`[RECEIVING SIGNAL] 📹 Local stream state:`, {
+                    exists: !!localStreamRef.current,
+                    active: localStreamRef.current?.active,
+                    videoTracks: localStreamRef.current?.getVideoTracks().length,
+                    audioTracks: localStreamRef.current?.getAudioTracks().length
+                });
+                
                 if (localStreamRef.current) {
+                    console.log(`[RECEIVING SIGNAL] 🚀 Creating peer for ${callerId}`);
                     addPeer(signal, callerId, localStreamRef.current);
                 } else {
-                    console.error('[SIGNALING ERROR] Local stream not available to process incoming signal.');
+                    console.error('[SIGNALING ERROR] ❌ Local stream not available to process incoming signal.');
+                    // Try to wait a bit and retry
+                    setTimeout(() => {
+                        if (localStreamRef.current) {
+                            console.log(`[RECEIVING SIGNAL] 🔄 Retrying with delayed stream for ${callerId}`);
+                            addPeer(signal, callerId, localStreamRef.current);
+                        } else {
+                            console.error('[SIGNALING ERROR] ❌ Local stream still not available after retry');
+                        }
+                    }, 1000);
                 }
             }
         };
@@ -399,22 +448,38 @@ const VideoRoom = () => {
         socket?.on('receiving-signal', handleReceivingSignal);
         socket?.on('returning-signal', ({ signal, callerId }) => {
             if (isMounted) {
-                console.log(`[SOCKET] Received 'returning-signal' from ${callerId}.`);
-                console.log(`[RETURNING SIGNAL] Current peers:`, Object.keys(peersRef.current));
-                console.log(`[RETURNING SIGNAL] Looking for peer with callerId:`, callerId);
+                console.log(`[SOCKET] ✅ Received 'returning-signal' from ${callerId}`);
+                console.log(`[RETURNING SIGNAL] 📡 Signal type:`, signal?.type || 'unknown');
+                console.log(`[RETURNING SIGNAL] 🔍 Current peers:`, Object.keys(peersRef.current));
+                console.log(`[RETURNING SIGNAL] 🎯 Looking for peer with callerId:`, callerId);
+                console.log(`[RETURNING SIGNAL] 👤 Current authUser:`, authUser._id);
                 
                 const peer = peersRef.current[callerId];
                 if (peer) {
-                    console.log(`[RETURNING SIGNAL] Found peer for ${callerId}. Signaling...`);
-                    peer.signal(signal);
+                    console.log(`[RETURNING SIGNAL] ✅ Found peer for ${callerId}. Signaling...`);
+                    try {
+                        peer.signal(signal);
+                        console.log(`[RETURNING SIGNAL] 📤 Signal sent successfully to peer ${callerId}`);
+                    } catch (error) {
+                        console.error(`[RETURNING SIGNAL ERROR] ❌ Failed to signal peer:`, error);
+                    }
                 } else {
-                    console.error(`[RETURNING SIGNAL ERROR] Peer not found for caller ${callerId}.`);
-                    console.error(`[RETURNING SIGNAL ERROR] Available peers:`, Object.keys(peersRef.current));
+                    console.error(`[RETURNING SIGNAL ERROR] ❌ Peer not found for caller ${callerId}`);
+                    console.error(`[RETURNING SIGNAL ERROR] 📅 Available peers:`, Object.keys(peersRef.current));
+                    console.error(`[RETURNING SIGNAL ERROR] 🔍 Expected peer key:`, callerId);
+                    
                     // Check if the callerId might be in a different format or if we should look by a different key
                     const alternativePeer = Object.values(peersRef.current)[0]; // Get first available peer
                     if (alternativePeer && Object.keys(peersRef.current).length === 1) {
-                        console.log(`[RETURNING SIGNAL] Using alternative peer signaling...`);
-                        alternativePeer.signal(signal);
+                        console.log(`[RETURNING SIGNAL] 🔄 Using alternative peer signaling...`);
+                        try {
+                            alternativePeer.signal(signal);
+                            console.log(`[RETURNING SIGNAL] ✅ Alternative signaling successful`);
+                        } catch (error) {
+                            console.error(`[RETURNING SIGNAL ERROR] ❌ Alternative signaling failed:`, error);
+                        }
+                    } else {
+                        console.error(`[RETURNING SIGNAL ERROR] ❌ No alternative peers available`);
                     }
                 }
             }
@@ -431,6 +496,11 @@ const VideoRoom = () => {
         return () => {
             isMounted = false;
             console.log('[CLEANUP] Disconnecting from room and destroying all peers.');
+            
+            // Clear global room state
+            window.currentRoomId = null;
+            window.currentUserId = null;
+            
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(track => track.stop());
             }

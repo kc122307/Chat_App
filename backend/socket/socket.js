@@ -204,6 +204,34 @@ io.on("connection", (socket) => {
         
         console.log(`✅ Successfully processed join-room for ${userName}`);
     });
+    
+    socket.on("rejoin-room", ({ roomId, userId, userName }) => {
+        console.log(`🔄 [BACKEND] User ${userName} (${userId}) rejoining room ${roomId} after reconnection`);
+        
+        if (!videoRooms[roomId]) {
+            console.error(`❌ [BACKEND] Room ${roomId} no longer exists for rejoin`);
+            return;
+        }
+        
+        // Find and update the participant's socket ID
+        const participant = videoRooms[roomId].participants.find(p => p.userId === userId);
+        if (participant) {
+            console.log(`🔄 [BACKEND] Updating socket ID for ${userName} from ${participant.socketId} to ${socket.id}`);
+            participant.socketId = socket.id;
+        } else {
+            console.log(`➕ [BACKEND] Adding ${userName} back to room ${roomId}`);
+            videoRooms[roomId].participants.push({ userId, userName, socketId: socket.id });
+        }
+        
+        // Update room mapping
+        roomUserSocketMap[userId] = roomId;
+        socket.join(roomId);
+        
+        // Send updated room info
+        io.to(socket.id).emit("room-info", videoRooms[roomId]);
+        
+        console.log(`✅ [BACKEND] Successfully processed rejoin for ${userName}`);
+    });
 
     socket.on("leave-room", ({ roomId, userId }) => {
         if (videoRooms[roomId]) {
@@ -230,56 +258,72 @@ io.on("connection", (socket) => {
     });
 
     socket.on("sending-signal", ({ userToSignal, signal, callerId }) => {
-        console.log(`📡 Sending signal from ${callerId} to ${userToSignal}`);
+        console.log(`📡 [BACKEND] Sending signal from ${callerId} to ${userToSignal}`);
+        console.log(`📡 [BACKEND] Signal type:`, signal?.type || 'unknown');
         
         const roomId = roomUserSocketMap[userToSignal];
-        console.log(`🏠 Room for target user ${userToSignal}:`, roomId);
+        console.log(`🏠 [BACKEND] Room for target user ${userToSignal}:`, roomId);
+        console.log(`📅 [BACKEND] All room mappings:`, roomUserSocketMap);
         
         if (roomId && videoRooms[roomId]) {
             const receiverSocket = videoRooms[roomId].participants.find(
                 (p) => p.userId === userToSignal
             );
             
+            console.log(`🔍 [BACKEND] Looking for participant ${userToSignal}`);
+            console.log(`📅 [BACKEND] Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
+            
             if (receiverSocket) {
-                console.log(`📤 Sending receiving-signal to ${userToSignal} at socket ${receiverSocket.socketId}`);
+                console.log(`📤 [BACKEND] ✅ Sending receiving-signal to ${userToSignal} at socket ${receiverSocket.socketId}`);
                 io.to(receiverSocket.socketId).emit("receiving-signal", {
                     signal,
                     callerId,
                 });
+                console.log(`📤 [BACKEND] ✅ receiving-signal event emitted successfully`);
             } else {
-                console.error(`❌ No receiver found for signal to ${userToSignal}`);
-                console.log(`📅 Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
+                console.error(`❌ [BACKEND] No receiver found for signal to ${userToSignal}`);
+                console.log(`📅 [BACKEND] Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
             }
         } else {
-            console.error(`❌ Room not found for sending signal to ${userToSignal}`);
+            console.error(`❌ [BACKEND] Room not found for sending signal to ${userToSignal}`);
+            console.error(`❌ [BACKEND] Room mapping:`, roomUserSocketMap);
+            console.error(`❌ [BACKEND] Available rooms:`, Object.keys(videoRooms));
         }
     });
 
     socket.on("returning-signal", ({ signal, callerId }) => {
-        console.log(`🔄 Returning signal from ${callerId}`);
+        console.log(`🔄 [BACKEND] Returning signal from ${callerId}`);
+        console.log(`🔄 [BACKEND] Signal type:`, signal?.type || 'unknown');
         
         // Find the room where the caller is located
         const roomId = roomUserSocketMap[callerId];
-        console.log(`🏠 Room for caller ${callerId}:`, roomId);
+        console.log(`🏠 [BACKEND] Room for caller ${callerId}:`, roomId);
+        console.log(`📅 [BACKEND] All room mappings:`, roomUserSocketMap);
         
         if (roomId && videoRooms[roomId]) {
+            console.log(`🔍 [BACKEND] Looking for participant ${callerId} in room ${roomId}`);
+            console.log(`📅 [BACKEND] Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
+            
             // Find the receiver (the original caller who initiated the peer connection)
             const receiverSocket = videoRooms[roomId].participants.find(
                 (p) => p.userId === callerId
             );
             
             if (receiverSocket) {
-                console.log(`📤 Sending returning-signal to ${callerId} at socket ${receiverSocket.socketId}`);
+                console.log(`📤 [BACKEND] ✅ Sending returning-signal to ${callerId} at socket ${receiverSocket.socketId}`);
                 io.to(receiverSocket.socketId).emit("returning-signal", {
                     signal,
                     callerId,
                 });
+                console.log(`📤 [BACKEND] ✅ returning-signal event emitted successfully`);
             } else {
-                console.error(`❌ No receiver found for returning signal from ${callerId}`);
-                console.log(`📅 Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
+                console.error(`❌ [BACKEND] No receiver found for returning signal from ${callerId}`);
+                console.log(`📅 [BACKEND] Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
             }
         } else {
-            console.error(`❌ Room not found for returning signal from ${callerId}`);
+            console.error(`❌ [BACKEND] Room not found for returning signal from ${callerId}`);
+            console.error(`❌ [BACKEND] Room mapping:`, roomUserSocketMap);
+            console.error(`❌ [BACKEND] Available rooms:`, Object.keys(videoRooms));
         }
     });
 

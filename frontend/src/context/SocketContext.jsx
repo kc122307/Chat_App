@@ -39,18 +39,33 @@ export const SocketContextProvider = ({ children }) => {
                     reconnectionDelay: 1000,
                 });
                 
-                newSocket.on('connect', () => {
-                    console.log('✅ Socket connected successfully with ID:', newSocket.id);
-                });
+            newSocket.on('connect', () => {
+                console.log('✅ Socket connected successfully with ID:', newSocket.id);
                 
-                newSocket.on('disconnect', (reason) => {
-                    console.log('❌ Socket disconnected. Reason:', reason);
-                    if (reason === 'io server disconnect' && socketShouldConnect.current) {
-                        // Server forcefully disconnected, try to reconnect
-                        console.log('🔄 Server disconnect detected, reconnecting...');
-                        newSocket.connect();
-                    }
-                });
+                // Store connection info for potential room rejoin
+                if (window.currentRoomId && window.currentUserId) {
+                    console.log('🔄 Reconnected - rejoining room:', window.currentRoomId);
+                    // Small delay to ensure connection is stable
+                    setTimeout(() => {
+                        newSocket.emit('rejoin-room', {
+                            roomId: window.currentRoomId,
+                            userId: window.currentUserId,
+                            userName: authUser?.fullName || 'Unknown'
+                        });
+                    }, 1000);
+                }
+            });
+                
+            newSocket.on('disconnect', (reason) => {
+                console.log('❌ Socket disconnected. Reason:', reason);
+                if (reason === 'transport error' && socketShouldConnect.current) {
+                    console.log('🔄 Transport error detected, will attempt reconnection...');
+                } else if (reason === 'io server disconnect' && socketShouldConnect.current) {
+                    // Server forcefully disconnected, try to reconnect
+                    console.log('🔄 Server disconnect detected, reconnecting...');
+                    newSocket.connect();
+                }
+            });
                 
                 newSocket.on('connect_error', (error) => {
                     console.error('❌ Socket connection error:', error);
