@@ -114,6 +114,11 @@ const VideoRoom = () => {
         
         peer.on('iceStateChange', (state) => {
             console.log(`[PEER ICE STATE] ${userId}: ${state}`);
+            if (state === 'connected') {
+                console.log(`[PEER ICE] ✅ ICE connection established with ${userId}`);
+            } else if (state === 'failed') {
+                console.error(`[PEER ICE] ❌ ICE connection failed with ${userId}`);
+            }
         });
         
         peer.on('connectionStateChange', (state) => {
@@ -124,6 +129,19 @@ const VideoRoom = () => {
                 console.error(`[PEER CONNECTION] ❌ Connection ${state} with ${userId}`);
             }
         });
+        
+        // Additional WebRTC debugging
+        peer._pc.oniceconnectionstatechange = () => {
+            console.log(`[PEER ICE CONNECTION] ${userId}: ${peer._pc.iceConnectionState}`);
+        };
+        
+        peer._pc.onconnectionstatechange = () => {
+            console.log(`[PEER RTC CONNECTION] ${userId}: ${peer._pc.connectionState}`);
+        };
+        
+        peer._pc.onsignalingstatechange = () => {
+            console.log(`[PEER SIGNALING STATE] ${userId}: ${peer._pc.signalingState}`);
+        };
 
         peer.on('signal', signal => {
             try {
@@ -148,7 +166,7 @@ const VideoRoom = () => {
                         socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
                     } else {
                         console.log(`[SIGNALING] Emitting 'returning-signal' to server - signal from ${authUser._id} to ${userId}.`);
-                        socket.emit('returning-signal', { signal, callerId: authUser._id });
+                        socket.emit('returning-signal', { signal, callerId: userId }); // userId is the original caller
                     }
                 };
                 
@@ -453,13 +471,33 @@ const VideoRoom = () => {
                 console.log(`[RETURNING SIGNAL] 🔍 Current peers:`, Object.keys(peersRef.current));
                 console.log(`[RETURNING SIGNAL] 🎯 Looking for peer with callerId:`, callerId);
                 console.log(`[RETURNING SIGNAL] 👤 Current authUser:`, authUser._id);
+                console.log(`[RETURNING SIGNAL] 🔄 Peers debug:`, Object.entries(peersRef.current).map(([key, peer]) => ({ 
+                    key, 
+                    initiator: peer.initiator, 
+                    connectionState: peer._pc?.connectionState,
+                    signalingState: peer._pc?.signalingState
+                })));
                 
                 const peer = peersRef.current[callerId];
                 if (peer) {
                     console.log(`[RETURNING SIGNAL] ✅ Found peer for ${callerId}. Signaling...`);
+                    console.log(`[RETURNING SIGNAL] 🔍 Peer state before signaling:`, {
+                        initiator: peer.initiator,
+                        connectionState: peer._pc?.connectionState,
+                        signalingState: peer._pc?.signalingState
+                    });
                     try {
                         peer.signal(signal);
                         console.log(`[RETURNING SIGNAL] 📤 Signal sent successfully to peer ${callerId}`);
+                        
+                        // Check peer state after signaling
+                        setTimeout(() => {
+                            console.log(`[RETURNING SIGNAL] 🔍 Peer state after signaling:`, {
+                                connectionState: peer._pc?.connectionState,
+                                signalingState: peer._pc?.signalingState,
+                                iceConnectionState: peer._pc?.iceConnectionState
+                            });
+                        }, 1000);
                     } catch (error) {
                         console.error(`[RETURNING SIGNAL ERROR] ❌ Failed to signal peer:`, error);
                     }
