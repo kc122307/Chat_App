@@ -21,7 +21,15 @@ export default defineConfig({
     // Update the define section for better compatibility
     define: {
         global: 'globalThis',
-        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+        'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
+        'process.env': JSON.stringify({
+            NODE_ENV: process.env.NODE_ENV || 'production'
+        }),
+        process: JSON.stringify({
+            env: {
+                NODE_ENV: process.env.NODE_ENV || 'production'
+            }
+        }),
     },
     // Add optimizeDeps to handle simple-peer dependencies correctly
     optimizeDeps: {
