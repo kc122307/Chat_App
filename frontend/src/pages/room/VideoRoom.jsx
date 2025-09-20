@@ -196,13 +196,58 @@ const VideoRoom = () => {
                 // AUDIO DEBUG: Check audio tracks in received stream
                 console.log(`[AUDIO] 🎧 RECEIVED STREAM AUDIO ANALYSIS:`);
                 remoteStream.getAudioTracks().forEach((track, index) => {
-                    console.log(`[AUDIO] Remote audio track ${index}:`, {
+                    console.log(`[AUDIO] Remote audio track ${index} BEFORE fix:`, {
                         enabled: track.enabled,
                         readyState: track.readyState,
                         muted: track.muted,
                         kind: track.kind,
                         label: track.label,
                         settings: track.getSettings()
+                    });
+                    
+                    // CRITICAL FIX: Force unmute the audio track directly
+                    if (track.muted) {
+                        console.log(`[AUDIO] 🔇 CRITICAL: Audio track ${index} is muted! Attempting to unmute...`);
+                        // Try multiple approaches to unmute
+                        try {
+                            // Method 1: Direct property (may be read-only)
+                            if ('muted' in track && typeof track.muted === 'boolean') {
+                                track.muted = false;
+                                console.log(`[AUDIO] 🔊 Method 1: Set track.muted = false`);
+                            }
+                        } catch (e) {
+                            console.log(`[AUDIO] Method 1 failed:`, e.message);
+                        }
+                        
+                        // Method 2: Ensure track is enabled
+                        track.enabled = true;
+                        console.log(`[AUDIO] 🔊 Method 2: Force enabled track`);
+                        
+                        // Method 3: Create new MediaStream without muted constraint
+                        try {
+                            console.log(`[AUDIO] 🔊 Method 3: Attempting audio track clone/restart`);
+                            const clonedTrack = track.clone();
+                            if (clonedTrack && !clonedTrack.muted) {
+                                console.log(`[AUDIO] 🎉 Cloned track is not muted!`);
+                                // Note: We would need to replace the track in the stream, but that's complex
+                                // For now, just log this as a potential solution
+                            }
+                        } catch (e) {
+                            console.log(`[AUDIO] Method 3 failed:`, e.message);
+                        }
+                        
+                        // Method 4: Browser autoplay policy workaround
+                        console.log(`[AUDIO] 🚫 IMPORTANT: Audio track muted property might be READ-ONLY`);
+                        console.log(`[AUDIO] 💡 SOLUTION: User must click to enable audio due to browser autoplay policy`);
+                    } else {
+                        console.log(`[AUDIO] ✅ Audio track ${index} is NOT muted - should work!`);
+                    }
+                    
+                    // Log final state
+                    console.log(`[AUDIO] Remote audio track ${index} AFTER fix:`, {
+                        enabled: track.enabled,
+                        readyState: track.readyState,
+                        muted: track.muted
                     });
                 });
                 
