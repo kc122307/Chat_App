@@ -796,9 +796,21 @@ const VideoRoom = () => {
                                                     });
                                                 });
                                                 
-                                                // FORCE UNMUTE AND ENABLE AUDIO
+                                                // AGGRESSIVE AUDIO UNMUTE - Multiple attempts
+                                                console.log(`[AUDIO] 🚀 AGGRESSIVE UNMUTE for ${participant?.userName || userId}`);
+                                                
+                                                // Force unmute in multiple ways
                                                 video.muted = false;
                                                 video.volume = 1.0;
+                                                video.setAttribute('muted', false);
+                                                video.removeAttribute('muted');
+                                                
+                                                // Also unmute the stream tracks directly
+                                                stream.getAudioTracks().forEach((track, index) => {
+                                                    console.log(`[AUDIO] 🔇 Force enabling audio track ${index} for ${participant?.userName}`);
+                                                    track.enabled = true;
+                                                    if (track.muted !== undefined) track.muted = false;
+                                                });
                                                 
                                                 // FORCE PLAY THE VIDEO WITH AUDIO
                                                 video.play().then(() => {
@@ -829,20 +841,37 @@ const VideoRoom = () => {
                                 <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
                                     {participant?.userName || `User ${userId}`}
                                 </div>
-                                {/* Audio status overlay */}
-                                <div className="absolute top-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs cursor-pointer"
+                                {/* Audio control overlay - MORE PROMINENT */}
+                                <div className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-bold cursor-pointer border-2 border-white shadow-lg"
                                      onClick={(e) => {
                                         e.stopPropagation();
                                         const videoElement = e.currentTarget.parentElement.querySelector('video');
                                         if (videoElement) {
-                                            videoElement.muted = !videoElement.muted;
-                                            videoElement.volume = videoElement.muted ? 0 : 1.0;
-                                            console.log(`[AUDIO] Toggle mute for ${participant?.userName}:`, videoElement.muted);
-                                            toast.success(`${participant?.userName} audio ${videoElement.muted ? 'muted' : 'unmuted'}`);
+                                            // AGGRESSIVE UNMUTE
+                                            videoElement.muted = false;
+                                            videoElement.volume = 1.0;
+                                            videoElement.setAttribute('muted', false);
+                                            videoElement.removeAttribute('muted');
+                                            
+                                            // Also unmute stream tracks
+                                            const stream = videoElement.srcObject;
+                                            if (stream) {
+                                                stream.getAudioTracks().forEach((track, index) => {
+                                                    track.enabled = true;
+                                                    if (track.muted !== undefined) track.muted = false;
+                                                    console.log(`[AUDIO] 🔊 MANUAL UNMUTE track ${index} for ${participant?.userName}`);
+                                                });
+                                            }
+                                            
+                                            console.log(`[AUDIO] 🔊 MANUAL UNMUTE for ${participant?.userName}`);
+                                            toast.success(`🔊 Unmuted ${participant?.userName}`);
+                                            
+                                            // Force play
+                                            videoElement.play().catch(err => console.log('Play failed:', err));
                                         }
                                      }}
                                 >
-                                    🎧 Click to toggle audio
+                                    🔊 UNMUTE
                                 </div>
                             </div>
                         );
