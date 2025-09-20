@@ -193,6 +193,19 @@ const VideoRoom = () => {
                     audioTracks: remoteStream.getAudioTracks().length
                 });
                 
+                // AUDIO DEBUG: Check audio tracks in received stream
+                console.log(`[AUDIO] 🎧 RECEIVED STREAM AUDIO ANALYSIS:`);
+                remoteStream.getAudioTracks().forEach((track, index) => {
+                    console.log(`[AUDIO] Remote audio track ${index}:`, {
+                        enabled: track.enabled,
+                        readyState: track.readyState,
+                        muted: track.muted,
+                        kind: track.kind,
+                        label: track.label,
+                        settings: track.getSettings()
+                    });
+                });
+                
                 // IMMEDIATELY add to state - no conditions
                 setRemoteStreams(prevStreams => {
                     const newStreams = {
@@ -401,12 +414,22 @@ const VideoRoom = () => {
                     });
                     
                     // Check local audio tracks
+                    console.log(`[AUDIO] 🎤 LOCAL STREAM AUDIO ANALYSIS:`);
                     stream.getAudioTracks().forEach((track, index) => {
-                        console.log(`[MEDIA] Local audio track ${index}:`, {
+                        console.log(`[AUDIO] Local audio track ${index}:`, {
                             enabled: track.enabled,
                             readyState: track.readyState,
+                            muted: track.muted,
+                            kind: track.kind,
+                            label: track.label,
                             settings: track.getSettings()
                         });
+                        
+                        // FORCE ENABLE AUDIO TRACK
+                        if (!track.enabled) {
+                            console.log(`[AUDIO] 🔇 Enabling local audio track ${index}`);
+                            track.enabled = true;
+                        }
                     });
                     
                     setLocalStream(stream);
@@ -749,14 +772,35 @@ const VideoRoom = () => {
                                             video.onloadedmetadata = () => {
                                                 console.log(`[VIDEO] ✅ Metadata loaded for ${participant?.userName || userId}`);
                                                 console.log(`[VIDEO] Dimensions: ${video.videoWidth}x${video.videoHeight}`);
+                                                console.log(`[AUDIO] Audio tracks in stream:`, stream.getAudioTracks().length);
+                                                console.log(`[AUDIO] Video tracks in stream:`, stream.getVideoTracks().length);
                                                 
-                                                // FORCE PLAY THE VIDEO
+                                                // Check audio tracks
+                                                stream.getAudioTracks().forEach((track, index) => {
+                                                    console.log(`[AUDIO] Remote audio track ${index}:`, {
+                                                        enabled: track.enabled,
+                                                        readyState: track.readyState,
+                                                        muted: track.muted,
+                                                        settings: track.getSettings()
+                                                    });
+                                                });
+                                                
+                                                // FORCE UNMUTE AND ENABLE AUDIO
+                                                video.muted = false;
+                                                video.volume = 1.0;
+                                                
+                                                // FORCE PLAY THE VIDEO WITH AUDIO
                                                 video.play().then(() => {
                                                     console.log(`[VIDEO] 🎉 FORCE PLAY SUCCESS for ${participant?.userName || userId}`);
+                                                    console.log(`[AUDIO] 🔊 Video audio enabled:`, !video.muted, 'Volume:', video.volume);
                                                 }).catch(err => {
                                                     console.error(`[VIDEO] ❌ FORCE PLAY FAILED:`, err);
                                                     // Try again after a delay
-                                                    setTimeout(() => video.play(), 1000);
+                                                    setTimeout(() => {
+                                                        video.muted = false;
+                                                        video.volume = 1.0;
+                                                        video.play();
+                                                    }, 1000);
                                                 });
                                             };
                                             
