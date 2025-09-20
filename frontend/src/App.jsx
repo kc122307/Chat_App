@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import "./App.css";
+import LandingPage from "./pages/landing/LandingPage";
 import Home from "./pages/home/Home";
 import Login from "./pages/login/Login";
 import SignUp from "./pages/signup/SignUp";
@@ -17,15 +18,28 @@ function App() {
 	return (
 		<div className='h-screen'>
 			<Routes>
+				{/* Landing Page - First page visitors see */}
 				<Route
 					path='/'
+					element={
+						authUser ? (
+							<Navigate to={"/home"} />
+						) : (
+							<LandingPage />
+						)
+					}
+				/>
+				
+				{/* Home Page - For authenticated users */}
+				<Route
+					path='/home'
 					element={
 						authUser ? (
 							<MainLayout>
 								<Home />
 							</MainLayout>
 						) : (
-							<Navigate to={"/login"} />
+							<Navigate to={"/"} />
 						)
 					}
 				/>
@@ -37,7 +51,7 @@ function App() {
 								<Profile />
 							</MainLayout>
 						) : (
-							<Navigate to={"/login"} />
+							<Navigate to={"/"} />
 						)
 					}
 				/>
@@ -49,7 +63,7 @@ function App() {
 								<Groups />
 							</MainLayout>
 						) : (
-							<Navigate to={"/login"} />
+							<Navigate to={"/"} />
 						)
 					}
 				/>
@@ -62,7 +76,7 @@ function App() {
 								<RoomPage />
 							</MainLayout>
 						) : (
-							<Navigate to={"/login"} />
+							<Navigate to={"/"} />
 						)
 					}
 				/>
@@ -73,19 +87,19 @@ function App() {
 						authUser ? (
 							<VideoRoom />
 						) : (
-							<Navigate to={"/login"} />
+							<Navigate to={"/"} />
 						)
 					}
 				/>
 
 				<Route path='/login' element={
 					<div className='flex items-center justify-center h-screen'>
-						{authUser ? <Navigate to='/' /> : <Login />}
+						{authUser ? <Navigate to='/home' /> : <Login />}
 					</div>
 				} />
 				<Route path='/signup' element={
 					<div className='flex items-center justify-center h-screen'>
-						{authUser ? <Navigate to='/' /> : <SignUp />}
+						{authUser ? <Navigate to='/home' /> : <SignUp />}
 					</div>
 				} />
 			</Routes>
