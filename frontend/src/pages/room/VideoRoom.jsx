@@ -304,6 +304,7 @@ const VideoRoom = () => {
     // Use a single useEffect hook to handle all side effects
     useEffect(() => {
         let isMounted = true;
+        let roomCheckInProgress = false;
         
         console.log(`🎬 [VIDEO ROOM] Component mounted for room: ${roomId}`);
         console.log(`🎬 [VIDEO ROOM] Current user: ${authUser?.fullName} (${authUser?._id})`);
@@ -314,6 +315,11 @@ const VideoRoom = () => {
         window.currentUserId = authUser?._id;
         
         const checkRoomAndJoin = async () => {
+            if (roomCheckInProgress) {
+                console.log('[ROOM CHECK] Room check already in progress, skipping...');
+                return;
+            }
+            
             if (!socket || !socket.connected) {
                 console.log('[ROOM CHECK] Waiting for socket connection...');
                 // Wait for socket to connect
@@ -336,10 +342,22 @@ const VideoRoom = () => {
                 return;
             }
             
+            roomCheckInProgress = true;
             console.log(`[ROOM CHECK] Verifying room existence: ${roomId}`);
             
             // First check if room exists
             socket.emit('check-video-room', { roomId });
+            
+            // Set up timeout first
+            const roomCheckTimeout = setTimeout(() => {
+                if (isMounted) {
+                    socket.off('video-room-check-result', handleRoomCheckResult);
+                    roomCheckInProgress = false; // Reset the flag
+                    console.error('[ROOM CHECK] Room check timeout');
+                    toast.error('Room check timeout. Please try again.');
+                    navigate('/rooms');
+                }
+            }, 5000);
             
             // Handle room check response
             const handleRoomCheckResult = ({ roomId: checkedRoomId, exists }) => {
@@ -347,29 +365,22 @@ const VideoRoom = () => {
                 
                 if (!isMounted) return;
                 
+                // CLEAR THE TIMEOUT IMMEDIATELY ON SUCCESS OR FAILURE
+                clearTimeout(roomCheckTimeout);
                 socket.off('video-room-check-result', handleRoomCheckResult);
+                roomCheckInProgress = false; // Reset the flag
                 
                 if (exists) {
-                    console.log(`[ROOM CHECK] Room exists, proceeding to get media and join`);
+                    console.log(`[ROOM CHECK] ✅ Room exists, proceeding to get media and join`);
                     getLocalStreamAndJoinRoom();
                 } else {
-                    console.error(`[ROOM CHECK] Room ${roomId} does not exist`);
+                    console.error(`[ROOM CHECK] ❌ Room ${roomId} does not exist`);
                     toast.error(`Room ${roomId} not found. It may have expired or doesn't exist.`);
                     navigate('/rooms');
                 }
             };
             
             socket.on('video-room-check-result', handleRoomCheckResult);
-            
-            // Timeout for room check
-            setTimeout(() => {
-                if (isMounted) {
-                    socket.off('video-room-check-result', handleRoomCheckResult);
-                    console.error('[ROOM CHECK] Room check timeout');
-                    toast.error('Room check timeout. Please try again.');
-                    navigate('/rooms');
-                }
-            }, 5000);
         };
         
         const getLocalStreamAndJoinRoom = async () => {
