@@ -178,47 +178,36 @@ const VideoRoom = () => {
 
         peer.on('stream', remoteStream => {
             try {
-                console.log(`[STREAM] Received remote stream from user: ${userId}`);
+                console.log(`[STREAM] 🎉 REMOTE STREAM RECEIVED FROM: ${userId}`);
                 
-                if (!remoteStream || !remoteStream.active) {
-                    console.error('[STREAM ERROR] Received inactive or null stream');
-                    return;
-                }
-                
-                console.log(`[STREAM] Remote stream details:`, {
+                // FORCE STREAM: Accept ANY stream, even if it seems inactive
+                console.log(`[STREAM] 🚀 FORCE ADDING remote stream for user: ${userId}`);
+                console.log(`[STREAM] Stream details:`, {
                     id: remoteStream.id,
                     active: remoteStream.active,
                     videoTracks: remoteStream.getVideoTracks().length,
                     audioTracks: remoteStream.getAudioTracks().length
                 });
                 
-                // Check video tracks
-                remoteStream.getVideoTracks().forEach((track, index) => {
-                    console.log(`[STREAM] Video track ${index}:`, {
-                        enabled: track.enabled,
-                        readyState: track.readyState,
-                        muted: track.muted
-                    });
-                });
-                
-                // Check audio tracks
-                remoteStream.getAudioTracks().forEach((track, index) => {
-                    console.log(`[STREAM] Audio track ${index}:`, {
-                        enabled: track.enabled,
-                        readyState: track.readyState,
-                        muted: track.muted
-                    });
-                });
-                
-                console.log(`[STREAM] Adding remote stream to state for user: ${userId}`);
+                // IMMEDIATELY add to state - no conditions
                 setRemoteStreams(prevStreams => {
                     const newStreams = {
                         ...prevStreams,
                         [userId]: remoteStream
                     };
-                    console.log(`[STREAM] Updated remote streams:`, Object.keys(newStreams));
+                    console.log(`[STREAM] ✅ FORCED remote stream added! Total streams:`, Object.keys(newStreams).length);
+                    
+                    // Force re-render
+                    setTimeout(() => {
+                        console.log(`[STREAM] 🔄 Force re-render check - streams:`, Object.keys(newStreams));
+                    }, 1000);
+                    
                     return newStreams;
                 });
+                
+                // Show success notification
+                toast.success(`🎥 Connected to ${participants.find(p => p.userId === userId)?.userName || 'user'}!`);
+                
             } catch (error) {
                 console.error('[STREAM ERROR] Failed to handle stream:', error);
             }
@@ -737,17 +726,36 @@ const VideoRoom = () => {
                                 <video
                                     autoPlay
                                     playsInline
+                                    muted={false}
+                                    controls={false}
                                     className="w-full h-full object-cover"
+                                    style={{ backgroundColor: '#1f2937' }}
                                     ref={video => {
                                         if (video && stream) {
-                                            console.log(`[VIDEO] Attaching stream to video element for ${participant?.userName || userId}`);
+                                            console.log(`[VIDEO] 📺 FORCE ATTACHING stream for ${participant?.userName || userId}`);
                                             video.srcObject = stream;
+                                            
+                                            // FORCE PLAY
                                             video.onloadedmetadata = () => {
-                                                console.log(`[VIDEO] Video metadata loaded for ${participant?.userName || userId}`);
-                                                console.log(`[VIDEO] Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+                                                console.log(`[VIDEO] ✅ Metadata loaded for ${participant?.userName || userId}`);
+                                                console.log(`[VIDEO] Dimensions: ${video.videoWidth}x${video.videoHeight}`);
+                                                
+                                                // FORCE PLAY THE VIDEO
+                                                video.play().then(() => {
+                                                    console.log(`[VIDEO] 🎉 FORCE PLAY SUCCESS for ${participant?.userName || userId}`);
+                                                }).catch(err => {
+                                                    console.error(`[VIDEO] ❌ FORCE PLAY FAILED:`, err);
+                                                    // Try again after a delay
+                                                    setTimeout(() => video.play(), 1000);
+                                                });
                                             };
+                                            
                                             video.onplay = () => {
-                                                console.log(`[VIDEO] Video started playing for ${participant?.userName || userId}`);
+                                                console.log(`[VIDEO] ▶️ Video PLAYING for ${participant?.userName || userId}`);
+                                            };
+                                            
+                                            video.onerror = (err) => {
+                                                console.error(`[VIDEO] ❌ Video ERROR for ${participant?.userName || userId}:`, err);
                                             };
                                         }
                                     }}
