@@ -576,6 +576,7 @@ const VideoRoom = () => {
             }
         });
         socket?.on('receiving-signal', handleReceivingSignal);
+        console.log('[SOCKET LISTENERS] ✅ receiving-signal handler registered');
         socket?.on('returning-signal', ({ signal, callerId }) => {
             if (isMounted) {
                 console.log(`[SOCKET] ✅ Received 'returning-signal' from ${callerId}`);
