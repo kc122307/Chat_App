@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Remote Stream Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .video-container { display: flex; gap: 20px; margin: 20px 0; }
+        video { width: 300px; height: 200px; background: #333; border: 2px solid #666; }
+        .logs { background: #000; color: #0f0; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace; }
+        button { padding: 10px 20px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🎥 Remote Stream Test</h1>
+    <p>This test verifies that remote video streams work between two users.</p>
+    
+    <div class="status" id="status">
+        <strong>Status:</strong> Not connected
+    </div>
+    
+    <div>
+        <button onclick="startTest()">Start Test</button>
+        <button onclick="joinRoom()">Join Room</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <div class="video-container">
+        <div>
+            <h3>Local Video (You)</h3>
+            <video id="localVideo" autoplay muted playsinline></video>
+        </div>
+        <div>
+            <h3>Remote Video (Other User)</h3>
+            <video id="remoteVideo" autoplay playsinline></video>
+        </div>
+    </div>
+    
+    <div>
+        <h3>Logs:</h3>
+        <div class="logs" id="logs"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket;
+        let localStream;
+        let remoteStream;
+        let roomId = 'TEST123';
+        let userId = 'test-' + Math.random().toString(36).substr(2, 9);
+        
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${timestamp}] ${message}\n`;
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+        }
+        
+        function setStatus(message, type = 'warning') {
+            const status = document.getElementById('status');
+            status.innerHTML = `<strong>Status:</strong> ${message}`;
+            status.className = `status ${type}`;
+        }
+        
+        async function startTest() {
+            try {
+                log('🚀 Starting remote stream test...');
+                setStatus('Starting test...', 'warning');
+                
+                // Connect to backend
+                socket = io('https://chat-app-b6dd.onrender.com', {
+                    query: { userId: userId }
+                });
+                
+                socket.on('connect', () => {
+                    log('✅ Connected to backend with socket ID: ' + socket.id);
+                    setStatus('Connected to backend', 'success');
+                });
+                
+                socket.on('disconnect', () => {
+                    log('❌ Disconnected from backend');
+                    setStatus('Disconnected', 'error');
+                });
+                
+                // Get local media
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                log('✅ Local video stream obtained');
+                
+                // Listen for user-joined
+                socket.on('user-joined', ({ userId: joinedUserId, userName }) => {
+                    log(`🎉 User joined: ${userName} (${joinedUserId})`);
+                    log('🔥 THIS IS WHERE WEBRTC SHOULD START!');
+                });
+                
+                setStatus('Ready to join room', 'success');
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+                setStatus('Error: ' + error.message, 'error');
+            }
+        }
+        
+        function joinRoom() {
+            if (!socket || !socket.connected) {
+                log('❌ Not connected to backend');
+                return;
+            }
+            
+            log(`🏠 Joining room: ${roomId}`);
+            socket.emit('join-room', {
+                roomId: roomId,
+                userId: userId,
+                userName: 'TestUser-' + userId.slice(-4)
+            });
+            
+            socket.on('room-info', (info) => {
+                log(`📊 Room info: ${info.participants.length} participants`);
+                log(`👥 Participants: ${info.participants.map(p => p.userName).join(', ')}`);
+                
+                if (info.participants.length >= 2) {
+                    log('🎯 MULTIPLE USERS IN ROOM - WEBRTC SHOULD WORK NOW!');
+                    setStatus('Multiple users in room - WebRTC ready!', 'success');
+                } else {
+                    log('⏳ Waiting for second user to join...');
+                    setStatus('Waiting for second user...', 'warning');
+                }
+            });
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        // Auto-start test
+        window.onload = () => {
+            log('📝 Test page loaded. Click "Start Test" to begin.');
+            log(`🆔 Your test user ID: ${userId}`);
+            log(`🏠 Test room ID: ${roomId}`);
+        };
+    </script>
+</body>
+</html>

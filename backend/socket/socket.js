@@ -29,6 +29,7 @@ const roomUserSocketMap = {};
 
 io.on("connection", (socket) => {
     console.log("🔗 User connected with socket ID:", socket.id);
+    console.log("🌍 Total connected sockets:", io.engine.clientsCount);
 
     const userId = socket.handshake.query.userId;
     console.log("👤 User ID from handshake:", userId);
@@ -191,7 +192,11 @@ io.on("connection", (socket) => {
             videoRooms[roomId].participants.push(participant);
             console.log(`➕ Added participant ${userName} to room ${roomId}`);
             console.log(`📢 Notifying other room members about ${userName} joining`);
+            console.log(`🎉 ROOM NOW HAS ${videoRooms[roomId].participants.length} PARTICIPANTS!`);
+            
+            // IMPORTANT: Emit to other users in the room
             socket.to(roomId).emit("user-joined", { userId, userName });
+            console.log(`📤 user-joined event sent to room ${roomId}`);
         } else {
             console.log(`🔄 User ${userName} is already in room, updating socket ID`);
             // Update socket ID for existing participant
