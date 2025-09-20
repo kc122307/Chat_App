@@ -165,8 +165,9 @@ const VideoRoom = () => {
                         console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}.`);
                         socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
                     } else {
-                        console.log(`[SIGNALING] Emitting 'returning-signal' to server - signal from ${authUser._id} to ${userId}.`);
-                        socket.emit('returning-signal', { signal, callerId: authUser._id }); // Current user is responding
+                        console.log(`[SIGNALING] Emitting 'returning-signal' to server - returning signal TO original caller ${userId}.`);
+                        // FIXED: userId is the original caller who should receive the return signal
+                        socket.emit('returning-signal', { signal, callerId: userId }); // Send TO the original caller
                     }
                 };
                 
