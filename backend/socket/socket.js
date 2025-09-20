@@ -284,6 +284,10 @@ io.on("connection", (socket) => {
         const roomId = roomUserSocketMap[userToSignal];
         console.log(`🏠 [BACKEND] Room for target user ${userToSignal}:`, roomId);
         
+        // Try direct user socket mapping as fallback
+        const directSocketId = userSocketMap[userToSignal];
+        console.log(`🔗 [BACKEND] Direct socket lookup for ${userToSignal}:`, directSocketId);
+        
         if (roomId && videoRooms[roomId]) {
             console.log(`🔍 [BACKEND] Room ${roomId} exists, looking for participant ${userToSignal}`);
             console.log(`📅 [BACKEND] Available participants in room:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId}) - Socket: ${p.socketId}`));
@@ -309,12 +313,18 @@ io.on("connection", (socket) => {
                 console.error(`❌ [BACKEND] No receiver found for signal to ${userToSignal}`);
                 console.error(`❌ [BACKEND] Available participants:`, videoRooms[roomId].participants.map(p => `${p.userName}(${p.userId})`));
             }
-        } else if (!roomId) {
-            console.error(`❌ [BACKEND] No room mapping found for user ${userToSignal}`);
-            console.error(`❌ [BACKEND] Room mapping:`, roomUserSocketMap);
-            console.error(`❌ [BACKEND] Available rooms:`, Object.keys(videoRooms));
+        } else if (directSocketId) {
+            // FALLBACK: Use direct socket mapping
+            console.log(`🔄 [BACKEND] FALLBACK: Using direct socket mapping for ${userToSignal}`);
+            io.to(directSocketId).emit("receiving-signal", {
+                signal,
+                callerId,
+            });
+            console.log(`📤 [BACKEND] ✅ FALLBACK receiving-signal emitted to ${directSocketId}`);
         } else {
-            console.error(`❌ [BACKEND] Room ${roomId} does not exist`);
+            console.error(`❌ [BACKEND] No way to reach user ${userToSignal}`);
+            console.error(`❌ [BACKEND] Room mapping:`, roomUserSocketMap);
+            console.error(`❌ [BACKEND] Direct socket mapping:`, userSocketMap);
             console.error(`❌ [BACKEND] Available rooms:`, Object.keys(videoRooms));
         }
     });
