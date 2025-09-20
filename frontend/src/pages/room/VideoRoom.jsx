@@ -61,8 +61,9 @@ const VideoRoom = () => {
         }
     }, []);
 
-    const createPeer = useCallback((userId, stream, isInitiator) => {
+    const createPeer = useCallback((userId, stream, isInitiator, originalCallerId = null) => {
         console.log(`[CREATE PEER] Attempting to create peer for user: ${userId}, Initiator: ${isInitiator}`);
+        console.log(`[CREATE PEER] Original caller ID (for return signal): ${originalCallerId}`);
         
         if (!stream) {
             console.error('[CREATE PEER ERROR] Stream is null or undefined, cannot create peer.');
@@ -165,9 +166,11 @@ const VideoRoom = () => {
                         console.log(`[SIGNALING] Emitting 'sending-signal' to server for user ${userId}.`);
                         socket.emit('sending-signal', { userToSignal: userId, signal, callerId: authUser._id });
                     } else {
-                        console.log(`[SIGNALING] Emitting 'returning-signal' to server - returning signal TO original caller ${userId}.`);
-                        // FIXED: userId is the original caller who should receive the return signal
-                        socket.emit('returning-signal', { signal, callerId: userId }); // Send TO the original caller
+                        // CRITICAL FIX: Use originalCallerId if available, otherwise userId
+                        const targetCallerId = originalCallerId || userId;
+                        console.log(`[SIGNALING] Emitting 'returning-signal' to server - returning signal TO original caller ${targetCallerId}.`);
+                        console.log(`[SIGNALING] 🎯 Direction: Current user (${authUser._id}) -> Original caller (${targetCallerId})`);
+                        socket.emit('returning-signal', { signal, callerId: targetCallerId }); // Send TO the original caller
                     }
                 };
                 
@@ -232,12 +235,13 @@ const VideoRoom = () => {
         return peer;
     }, [socket, authUser]);
 
-    const addPeer = useCallback((incomingSignal, callerId, stream) => {
+    const addPeer = useCallback((incomingSignal, callerId, stream, originalCallerId = null) => {
         console.log(`[ADD PEER] 🚀 Adding peer for user: ${callerId}. Processing incoming signal.`);
         console.log(`[ADD PEER] 📡 Signal details:`, {
             type: incomingSignal?.type,
             sdpLength: incomingSignal?.sdp?.length,
-            callerId
+            callerId,
+            originalCallerId
         });
         console.log(`[ADD PEER] 📹 Stream details:`, {
             exists: !!stream,
@@ -260,9 +264,10 @@ const VideoRoom = () => {
 
         console.log(`[ADD PEER] 📅 Current peers before creation:`, Object.keys(peersRef.current));
         console.log(`[ADD PEER] 👤 Creating peer for ${callerId} as NON-INITIATOR`);
+        console.log(`[ADD PEER] 🎯 CRITICAL: Original caller (should receive return signal): ${originalCallerId || callerId}`);
 
         try {
-            const peer = createPeer(callerId, stream, false);
+            const peer = createPeer(callerId, stream, false, originalCallerId || callerId);
             if (peer) {
                 console.log('[ADD PEER] ✅ Peer created successfully! Signaling with incoming signal.');
                 console.log('[ADD PEER] 📝 Peer state before signaling:', {
@@ -510,7 +515,10 @@ const VideoRoom = () => {
                         signalType: signal?.type,
                         streamActive: localStreamRef.current?.active
                     });
-                    addPeer(signal, callerId, localStreamRef.current);
+                    
+                    // CRITICAL FIX: Store the original caller ID for returning signal
+                    // callerId is the person who initiated the call and should receive the return signal
+                    addPeer(signal, callerId, localStreamRef.current, callerId); // Pass original caller ID
                 } else {
                     console.error('[SIGNALING ERROR] ❌ Local stream not available to process incoming signal.');
                     console.error('[SIGNALING ERROR] 🔍 LocalStreamRef.current:', localStreamRef.current);
@@ -521,7 +529,7 @@ const VideoRoom = () => {
                     setTimeout(() => {
                         if (localStreamRef.current) {
                             console.log(`[RECEIVING SIGNAL] 🔄 Retrying with delayed stream for ${callerId}`);
-                            addPeer(signal, callerId, localStreamRef.current);
+                            addPeer(signal, callerId, localStreamRef.current, callerId); // Pass original caller ID
                         } else {
                             console.error('[SIGNALING ERROR] ❌ Local stream still not available after retry');
                         }
