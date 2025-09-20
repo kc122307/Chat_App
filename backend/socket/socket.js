@@ -321,27 +321,28 @@ io.on("connection", (socket) => {
         console.log(`🔄 [BACKEND SIGNALING] Signal type:`, signal?.type);
         console.log(`🔄 [BACKEND SIGNALING] Current socket ID: ${socket.id}`);
         
-        // SIMPLE: Just find the caller's socket and send the return signal
-        const callerSocketId = userSocketMap[callerId];
+        // FIXED: callerId is actually the original caller who should receive the return signal
+        const originalCallerSocketId = userSocketMap[callerId];
         const currentUserId = socketUserMap[socket.id];
         
-        console.log(`🔄 [BACKEND SIGNALING] Looking for caller: ${callerId}`);
-        console.log(`🔄 [BACKEND SIGNALING] Found caller socket ID: ${callerSocketId}`);
+        console.log(`🔄 [BACKEND SIGNALING] Looking for ORIGINAL CALLER: ${callerId}`);
+        console.log(`🔄 [BACKEND SIGNALING] Found original caller socket ID: ${originalCallerSocketId}`);
         console.log(`🔄 [BACKEND SIGNALING] Current user ID (responding): ${currentUserId}`);
+        console.log(`🔄 [BACKEND SIGNALING] 🎯 DIRECTION: ${currentUserId} -> ${callerId}`);
         
-        if (callerSocketId) {
-            console.log(`🚀 [BACKEND SIGNALING] ✅ Caller found! Sending return signal to socket: ${callerSocketId}`);
+        if (originalCallerSocketId) {
+            console.log(`🚀 [BACKEND SIGNALING] ✅ Original caller found! Sending return signal to socket: ${originalCallerSocketId}`);
             console.log(`🚀 [BACKEND SIGNALING] About to emit 'returning-signal' event`);
             
-            io.to(callerSocketId).emit("returning-signal", {
+            io.to(originalCallerSocketId).emit("returning-signal", {
                 signal,
-                callerId: currentUserId
+                callerId: currentUserId // The person who is responding (current user)
             });
             
             console.log(`✅ [BACKEND SIGNALING] 🎯 Return signal sent successfully from ${currentUserId} to ${callerId}!`);
             console.log(`✅ [BACKEND SIGNALING] === END RETURNING SIGNAL ===\n`);
         } else {
-            console.error(`❌ [BACKEND SIGNALING] 💥 CRITICAL ERROR: Caller ${callerId} not found in userSocketMap!`);
+            console.error(`❌ [BACKEND SIGNALING] 💥 CRITICAL ERROR: Original caller ${callerId} not found in userSocketMap!`);
             console.error(`❌ [BACKEND SIGNALING] Available users in map:`, Object.keys(userSocketMap));
             console.error(`❌ [BACKEND SIGNALING] === END RETURNING SIGNAL (FAILED) ===\n`);
         }
