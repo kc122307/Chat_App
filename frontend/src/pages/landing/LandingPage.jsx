@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaVideo, FaComments, FaUsers, FaShield, FaGlobe, FaRocket, FaMobile, FaEnvelope, FaPhone, FaMapMarkerAlt, FaBars, FaTimes, FaStar, FaPlay } from 'react-icons/fa';
+import { FaVideo, FaComments, FaUsers, FaLock, FaGlobe, FaRocket, FaMobile, FaEnvelope, FaPhone, FaMapMarkerAlt, FaBars, FaTimes, FaStar, FaPlay } from 'react-icons/fa';
 
 const LandingPage = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -22,7 +22,7 @@ const LandingPage = () => {
             description: "Create group chats, manage participants, and collaborate with your team in organized conversations."
         },
         {
-            icon: <FaShield className="text-4xl text-red-500" />,
+            icon: <FaLock className="text-4xl text-red-500" />,
             title: "Secure & Private",
             description: "End-to-end encryption ensures your conversations remain private and secure from unauthorized access."
         },
@@ -221,7 +221,7 @@ const LandingPage = () => {
                                     <span className="text-gray-300">Works on all devices</span>
                                 </div>
                                 <div className="flex items-center">
-                                    <FaShield className="text-green-500 text-xl mr-4" />
+                                    <FaLock className="text-green-500 text-xl mr-4" />
                                     <span className="text-gray-300">End-to-end encryption</span>
                                 </div>
                                 <div className="flex items-center">
