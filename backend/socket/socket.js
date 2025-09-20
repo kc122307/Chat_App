@@ -275,40 +275,75 @@ io.on("connection", (socket) => {
     });
 
     socket.on("sending-signal", ({ userToSignal, signal, callerId }) => {
-        console.log(`📡 [BACKEND SIMPLE] Signal ${callerId} -> ${userToSignal}`);
+        console.log(`📡 [BACKEND SIGNALING] === SENDING SIGNAL DEBUG ===`);
+        console.log(`📡 [BACKEND SIGNALING] From: ${callerId}`);
+        console.log(`📡 [BACKEND SIGNALING] To: ${userToSignal}`);
+        console.log(`📡 [BACKEND SIGNALING] Signal type:`, signal?.type);
+        console.log(`📡 [BACKEND SIGNALING] Current socket ID: ${socket.id}`);
+        console.log(`📡 [BACKEND SIGNALING] UserSocketMap contents:`, Object.entries(userSocketMap).map(([user, sock]) => `${user}:${sock}`));
+        console.log(`📡 [BACKEND SIGNALING] SocketUserMap contents:`, Object.entries(socketUserMap).map(([sock, user]) => `${sock}:${user}`));
         
         // SIMPLE APPROACH: Just find the target socket and send the signal
         const targetSocketId = userSocketMap[userToSignal];
+        console.log(`📡 [BACKEND SIGNALING] Looking for user: ${userToSignal}`);
+        console.log(`📡 [BACKEND SIGNALING] Found socket ID: ${targetSocketId}`);
         
         if (targetSocketId) {
-            console.log(`🚀 [BACKEND SIMPLE] Forwarding signal to ${targetSocketId}`);
+            console.log(`🚀 [BACKEND SIGNALING] ✅ Target found! Forwarding signal to socket: ${targetSocketId}`);
+            console.log(`🚀 [BACKEND SIGNALING] About to emit 'receiving-signal' event`);
+            
             io.to(targetSocketId).emit("receiving-signal", {
                 signal,
                 callerId,
             });
-            console.log(`✅ [BACKEND SIMPLE] Signal forwarded successfully!`);
+            
+            console.log(`✅ [BACKEND SIGNALING] 🎯 Signal forwarded successfully from ${callerId} to ${userToSignal}!`);
+            console.log(`✅ [BACKEND SIGNALING] === END SENDING SIGNAL ===\n`);
         } else {
-            console.error(`❌ [BACKEND SIMPLE] User ${userToSignal} not found`);
-            console.log(`📅 [BACKEND SIMPLE] Available users:`, Object.keys(userSocketMap));
+            console.error(`❌ [BACKEND SIGNALING] 💥 CRITICAL ERROR: User ${userToSignal} not found in userSocketMap!`);
+            console.error(`❌ [BACKEND SIGNALING] Available users in map:`, Object.keys(userSocketMap));
+            console.error(`❌ [BACKEND SIGNALING] Expected user: ${userToSignal}`);
+            console.error(`❌ [BACKEND SIGNALING] Type of expected user: ${typeof userToSignal}`);
+            
+            // Try to find close matches
+            const availableUsers = Object.keys(userSocketMap);
+            const closeMatches = availableUsers.filter(u => u.includes(userToSignal.slice(-4)) || userToSignal.includes(u.slice(-4)));
+            if (closeMatches.length > 0) {
+                console.error(`❌ [BACKEND SIGNALING] Possible close matches:`, closeMatches);
+            }
+            console.error(`❌ [BACKEND SIGNALING] === END SENDING SIGNAL (FAILED) ===\n`);
         }
     });
 
     socket.on("returning-signal", ({ signal, callerId }) => {
-        console.log(`🔄 [BACKEND SIMPLE] Return signal to ${callerId}`);
+        console.log(`🔄 [BACKEND SIGNALING] === RETURNING SIGNAL DEBUG ===`);
+        console.log(`🔄 [BACKEND SIGNALING] Return signal TO: ${callerId}`);
+        console.log(`🔄 [BACKEND SIGNALING] Signal type:`, signal?.type);
+        console.log(`🔄 [BACKEND SIGNALING] Current socket ID: ${socket.id}`);
         
         // SIMPLE: Just find the caller's socket and send the return signal
         const callerSocketId = userSocketMap[callerId];
         const currentUserId = socketUserMap[socket.id];
         
+        console.log(`🔄 [BACKEND SIGNALING] Looking for caller: ${callerId}`);
+        console.log(`🔄 [BACKEND SIGNALING] Found caller socket ID: ${callerSocketId}`);
+        console.log(`🔄 [BACKEND SIGNALING] Current user ID (responding): ${currentUserId}`);
+        
         if (callerSocketId) {
-            console.log(`🚀 [BACKEND SIMPLE] Sending return signal to ${callerSocketId}`);
+            console.log(`🚀 [BACKEND SIGNALING] ✅ Caller found! Sending return signal to socket: ${callerSocketId}`);
+            console.log(`🚀 [BACKEND SIGNALING] About to emit 'returning-signal' event`);
+            
             io.to(callerSocketId).emit("returning-signal", {
                 signal,
                 callerId: currentUserId
             });
-            console.log(`✅ [BACKEND SIMPLE] Return signal sent successfully!`);
+            
+            console.log(`✅ [BACKEND SIGNALING] 🎯 Return signal sent successfully from ${currentUserId} to ${callerId}!`);
+            console.log(`✅ [BACKEND SIGNALING] === END RETURNING SIGNAL ===\n`);
         } else {
-            console.error(`❌ [BACKEND SIMPLE] Caller ${callerId} not found`);
+            console.error(`❌ [BACKEND SIGNALING] 💥 CRITICAL ERROR: Caller ${callerId} not found in userSocketMap!`);
+            console.error(`❌ [BACKEND SIGNALING] Available users in map:`, Object.keys(userSocketMap));
+            console.error(`❌ [BACKEND SIGNALING] === END RETURNING SIGNAL (FAILED) ===\n`);
         }
     });
 
