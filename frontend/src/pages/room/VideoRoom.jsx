@@ -761,8 +761,19 @@ const VideoRoom = () => {
                                     playsInline
                                     muted={false}
                                     controls={false}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover cursor-pointer"
                                     style={{ backgroundColor: '#1f2937' }}
+                                    onClick={(e) => {
+                                        // Handle click-to-unmute for browser autoplay restrictions
+                                        const video = e.target;
+                                        if (video.muted) {
+                                            video.muted = false;
+                                            video.volume = 1.0;
+                                            console.log(`[AUDIO] 🔊 User clicked to unmute ${participant?.userName || userId}`);
+                                            toast.success(`🔊 Audio enabled for ${participant?.userName || 'user'}`);
+                                        }
+                                        video.play().catch(err => console.log('Play failed:', err));
+                                    }}
                                     ref={video => {
                                         if (video && stream) {
                                             console.log(`[VIDEO] 📺 FORCE ATTACHING stream for ${participant?.userName || userId}`);
@@ -818,14 +829,43 @@ const VideoRoom = () => {
                                 <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
                                     {participant?.userName || `User ${userId}`}
                                 </div>
+                                {/* Audio status overlay */}
+                                <div className="absolute top-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs cursor-pointer"
+                                     onClick={(e) => {
+                                        e.stopPropagation();
+                                        const videoElement = e.currentTarget.parentElement.querySelector('video');
+                                        if (videoElement) {
+                                            videoElement.muted = !videoElement.muted;
+                                            videoElement.volume = videoElement.muted ? 0 : 1.0;
+                                            console.log(`[AUDIO] Toggle mute for ${participant?.userName}:`, videoElement.muted);
+                                            toast.info(`${participant?.userName} audio ${videoElement.muted ? 'muted' : 'unmuted'}`);
+                                        }
+                                     }}
+                                >
+                                    🎧 Click to toggle audio
+                                </div>
                             </div>
                         );
                     })
                 ) : (
                     <div className="flex items-center justify-center col-span-full h-full">
-                        <p className="text-gray-400 text-lg">No one else is present in the room.</p>
-                        <div className="mt-2 text-sm text-gray-500">
-                            Remote streams: {Object.keys(remoteStreams).length} | Participants: {participants.length}
+                        <div className="text-center">
+                            <p className="text-gray-400 text-lg">No one else is present in the room.</p>
+                            <div className="mt-2 text-sm text-gray-500">
+                                Remote streams: {Object.keys(remoteStreams).length} | Participants: {participants.length}
+                            </div>
+                            {participants.length === 1 && (
+                                <div className="mt-4 p-4 bg-gray-800 rounded-lg max-w-md mx-auto">
+                                    <h3 className="text-yellow-400 font-semibold mb-2">🎥 Waiting for others to join</h3>
+                                    <p className="text-gray-300 text-sm mb-2">Share your room code: <span className="font-mono bg-gray-700 px-2 py-1 rounded">{roomId}</span></p>
+                                    <div className="text-xs text-gray-400 mt-3">
+                                        <p>🔊 <strong>Audio Tips:</strong></p>
+                                        <p>• Make sure microphone permission is granted</p>
+                                        <p>• Click on remote video to unmute if needed</p>
+                                        <p>• Check browser console for audio debugging logs</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
