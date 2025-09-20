@@ -34,21 +34,44 @@ io.on("connection", (socket) => {
     const userId = socket.handshake.query.userId;
     console.log("👤 User ID from handshake:", userId);
     
-    if (userId !== "undefined") {
+    if (userId !== "undefined" && userId !== undefined && userId !== null) {
+        console.log(`🔧 [MAPPING DEBUG] Processing connection for userId: ${userId}, socket: ${socket.id}`);
+        console.log(`🔧 [MAPPING DEBUG] Before update - userSocketMap:`, Object.keys(userSocketMap));
+        console.log(`🔧 [MAPPING DEBUG] Before update - socketUserMap:`, Object.keys(socketUserMap));
+        
         // Check if user already has a socket connection
         const existingSocketId = userSocketMap[userId];
         if (existingSocketId && existingSocketId !== socket.id) {
             console.log("⚠️ User", userId, "already has socket", existingSocketId, "- replacing with new socket", socket.id);
+            // Clean up old socket mapping
+            if (socketUserMap[existingSocketId]) {
+                delete socketUserMap[existingSocketId];
+                console.log(`🧹 [CLEANUP] Removed old socket mapping: ${existingSocketId}`);
+            }
         }
         
+        // FORCE UPDATE BOTH MAPS
         userSocketMap[userId] = socket.id;
         socketUserMap[socket.id] = userId;
-        console.log("📊 Updated user mapping - userId:", userId, "socketId:", socket.id);
+        
+        console.log(`📊 [MAPPING DEBUG] After update - userId: ${userId}, socketId: ${socket.id}`);
+        console.log(`📊 [MAPPING DEBUG] userSocketMap now contains:`, Object.entries(userSocketMap).map(([u, s]) => `${u}:${s}`));
+        console.log(`📊 [MAPPING DEBUG] socketUserMap now contains:`, Object.entries(socketUserMap).map(([s, u]) => `${s}:${u}`));
+        
+        // VERIFICATION: Check if the mapping was successful
+        if (userSocketMap[userId] !== socket.id) {
+            console.error(`❌ [MAPPING ERROR] Failed to map userId ${userId} to socket ${socket.id}`);
+            console.error(`❌ [MAPPING ERROR] userSocketMap[${userId}] = ${userSocketMap[userId]}`);
+        } else {
+            console.log(`✅ [MAPPING SUCCESS] userId ${userId} successfully mapped to socket ${socket.id}`);
+        }
     } else {
-        console.warn("⚠️ No valid userId provided in handshake query");
+        console.warn(`⚠️ [MAPPING WARNING] Invalid userId provided:`, userId);
+        console.warn(`⚠️ [MAPPING WARNING] Type:`, typeof userId);
     }
 
     console.log("📊 Current online users:", Object.keys(userSocketMap));
+    console.log("📊 Current socket mappings:", Object.entries(userSocketMap).length);
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
     socket.on("call-user", ({ userToCall, signal, callType }) => {
