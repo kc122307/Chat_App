@@ -838,7 +838,7 @@ const VideoRoom = () => {
                                             videoElement.muted = !videoElement.muted;
                                             videoElement.volume = videoElement.muted ? 0 : 1.0;
                                             console.log(`[AUDIO] Toggle mute for ${participant?.userName}:`, videoElement.muted);
-                                            toast.info(`${participant?.userName} audio ${videoElement.muted ? 'muted' : 'unmuted'}`);
+                                            toast.success(`${participant?.userName} audio ${videoElement.muted ? 'muted' : 'unmuted'}`);
                                         }
                                      }}
                                 >
